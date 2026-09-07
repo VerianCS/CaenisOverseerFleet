@@ -1,0 +1,33 @@
+http:
+  routers:
+    api:
+      rule: "PathPrefix(`/api/v1`) || Path(`/ws`)"
+      priority: 100
+      service: core
+      middlewares: [body-limit]
+    telemetry:
+      rule: "Path(`/telemetry`)"
+      priority: 100
+      service: nifi
+      middlewares: [body-limit]
+    web:
+      rule: "PathPrefix(`/`)"
+      service: web
+  services:
+    nifi:
+      loadBalancer:
+        servers:
+          - url: http://nifi:8085
+    core:
+      loadBalancer:
+        servers:
+          - url: http://core:8080
+    web:
+      loadBalancer:
+        servers:
+          - url: http://web:3000
+  middlewares:
+    body-limit:
+      buffering:
+        maxRequestBodyBytes: 2097152
+        memRequestBodyBytes: 262144

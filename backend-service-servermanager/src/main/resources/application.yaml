@@ -1,0 +1,18 @@
+server:
+  address: ${CAENIS_MANAGER_BIND:127.0.0.1}
+  port: ${CAENIS_MANAGER_PORT:8090}
+  shutdown: graceful
+  error:
+    include-message: never
+spring:
+  application:
+    name: caenis-host-manager
+  lifecycle:
+    timeout-per-shutdown-phase: 45s
+caenis:
+  manager:
+    key: ${CAENIS_MANAGER_KEY}
+    root: ${CAENIS_SERVERS_ROOT:./servers}
+    java-command: ${CAENIS_JAVA_COMMAND:java}
+    # Supply instances in a separate application-manager.yml next to the manager.
+    instances: {}

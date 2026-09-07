@@ -1,0 +1,59 @@
+spring:
+  application:
+    name: caenis-core
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/caenis_overseer}
+    username: ${DATABASE_USER:caenis}
+    password: ${DATABASE_PASSWORD:1234}
+    hikari:
+      maximum-pool-size: 12
+      initialization-fail-timeout: 60000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 0
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false
+  task:
+    scheduling:
+      pool:
+        size: 2
+server:
+  port: 8080
+  forward-headers-strategy: framework
+  shutdown: graceful
+  tomcat:
+    max-http-form-post-size: 2MB
+    threads:
+      max: 80
+  error:
+    include-message: never
+    include-stacktrace: never
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+  otlp:
+    metrics:
+      export:
+        enabled: ${OTEL_METRICS_ENABLED:false}
+        url: ${OTEL_METRICS_URL:http://otel:4318/v1/metrics}
+caenis:
+  public-origin: ${CAENIS_PUBLIC_ORIGIN:http://localhost:3000}
+  secure-cookies: ${CAENIS_SECURE_COOKIES:false}
+  session-secret: ${CAENIS_SESSION_SECRET:super-secret-session-key-for-local-dev-1234567890}
+  encryption-key: ${CAENIS_ENCRYPTION_KEY:MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=}
+  bootstrap-username: admin # Change to use the .env instead
+  bootstrap-password: adminpassword123 # Change to use the .env instead
+  vault-url: ${VAULT_ADDR:}
+  vault-token-file: ${VAULT_TOKEN_FILE:}

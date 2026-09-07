@@ -1,0 +1,11 @@
+instance:
+  id: "srv-survival-01"
+  secret: "CHANGE_ME_FROM_THE_FLEET_CONSOLE"
+backend:
+  url: "http://127.0.0.1:3000"
+  # Empty uses signed direct ingestion. For NiFi use http://nifi-host:8085/telemetry.
+  telemetry-url: ""
+  timeout-seconds: 3
+collector:
+  queue-capacity: 8192
+  spool-max-mb: 128

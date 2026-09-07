@@ -1,0 +1,22 @@
+services:
+  gateway:
+    environment:
+      CAENIS_HOST: ${CAENIS_HOST:?Public hostname required}
+    command:
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --api.dashboard=false
+      - --certificatesresolvers.caenis.acme.email=${ACME_EMAIL:?ACME email required}
+      - --certificatesresolvers.caenis.acme.storage=/certificates/acme.json
+      - --certificatesresolvers.caenis.acme.httpchallenge.entrypoint=web
+      - --log.level=WARN
+    ports:
+      - "0.0.0.0:443:443"
+    volumes:
+      - ./docker/traefik/dynamic-https.yml:/etc/traefik/dynamic.yml:ro
+      - certificates:/certificates
+volumes:
+  certificates:

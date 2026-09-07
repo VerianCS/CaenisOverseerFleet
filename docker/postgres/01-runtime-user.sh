@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=app_password="$CAENIS_DATABASE_PASSWORD" <<'SQL'
+CREATE ROLE caenis LOGIN PASSWORD :'app_password';
+GRANT CONNECT ON DATABASE caenis_overseer TO caenis;
+GRANT USAGE ON SCHEMA public TO caenis;
+ALTER DEFAULT PRIVILEGES FOR ROLE caenis_owner IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO caenis;
+ALTER DEFAULT PRIVILEGES FOR ROLE caenis_owner IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO caenis;
+SQL

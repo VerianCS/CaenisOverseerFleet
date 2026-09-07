@@ -1,0 +1,12 @@
+.git
+**/node_modules
+**/.next
+**/build
+**/bin
+**/.gradle
+**/.idea
+**/.env*
+**/*.zip
+runtime
+dist
+servers

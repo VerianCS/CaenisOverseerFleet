@@ -1,0 +1,42 @@
+http:
+  routers:
+    api:
+      entryPoints: [websecure]
+      rule: 'Host(`{{env "CAENIS_HOST"}}`) && (PathPrefix(`/api/v1`) || Path(`/ws`))'
+      priority: 100
+      service: core
+      middlewares: [body-limit]
+      tls:
+        certResolver: caenis
+    telemetry:
+      entryPoints: [websecure]
+      rule: 'Host(`{{env "CAENIS_HOST"}}`) && Path(`/telemetry`)'
+      priority: 100
+      service: nifi
+      middlewares: [body-limit]
+      tls:
+        certResolver: caenis
+    web:
+      entryPoints: [websecure]
+      rule: 'Host(`{{env "CAENIS_HOST"}}`)'
+      service: web
+      tls:
+        certResolver: caenis
+  middlewares:
+    body-limit:
+      buffering:
+        maxRequestBodyBytes: 2097152
+        memRequestBodyBytes: 262144
+  services:
+    core:
+      loadBalancer:
+        servers:
+          - url: http://core:8080
+    web:
+      loadBalancer:
+        servers:
+          - url: http://web:3000
+    nifi:
+      loadBalancer:
+        servers:
+          - url: http://nifi:8085

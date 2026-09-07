@@ -1,0 +1,11 @@
+caenis:
+  manager:
+    instances:
+      srv-survival-01:
+        directory: survival
+        jar: paper.jar
+        memory-mb: 4096
+      srv-hub-01:
+        directory: hub
+        jar: paper.jar
+        memory-mb: 2048

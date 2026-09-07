@@ -1,0 +1,480 @@
+/* =====================================================================
+   Minecraft Voxel Background Stylesheet
+   ===================================================================== */
+
+/* 1. Viewport & Bleed Boundary (Absorbs parallax to prevent gaps) */
+.mc-world-viewport {
+  position: fixed;
+  top: -80px;
+  left: -80px;
+  right: -80px;
+  bottom: -80px;
+  width: calc(100vw + 160px);
+  height: calc(100vh + 160px);
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+  image-rendering: pixelated;
+  transition: filter 2.5s ease;
+}
+
+/* Base Parallax Layer */
+.mc-layer {
+  position: absolute;
+  top: -50px;
+  left: -70px;
+  right: -70px;
+  bottom: -50px;
+  width: calc(100% + 140px);
+  height: calc(100% + 100px);
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+/* 2. Dynamic Sky Backdrop */
+.mc-sky-backdrop {
+  position: absolute;
+  inset: 0;
+  transition: background 2.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.weather-day .mc-sky-backdrop {
+  background: linear-gradient(180deg, #3a7be8 0%, #68a5f8 50%, #b0d9fe 85%, #d1ebff 100%);
+}
+
+.weather-sunset .mc-sky-backdrop {
+  background: linear-gradient(180deg, #1b1b3a 0%, #622f4b 35%, #ad433c 65%, #f18c47 88%, #f8cf74 100%);
+}
+
+.weather-night .mc-sky-backdrop {
+  background: linear-gradient(180deg, #050711 0%, #0c1424 50%, #111e33 100%);
+}
+
+/* 3. Stars (Twinkles during Sunset & Night) */
+.mc-stars-container {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 2.5s ease;
+}
+
+.weather-night .mc-stars-container {
+  opacity: 0.95;
+}
+
+.weather-sunset .mc-stars-container {
+  opacity: 0.35;
+}
+
+.mc-star {
+  position: absolute;
+  background: #ffffff;
+  box-shadow: 0 0 4px #ffffff;
+  animation: mcStarTwinkle 3s ease-in-out infinite alternate;
+}
+
+@keyframes mcStarTwinkle {
+  0% { opacity: 0.25; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1.2); }
+}
+
+/* 4. Celestial Layer: Sun & Moon */
+.mc-layer-celestial {
+  transform: translate(
+    calc(var(--px, 0) * 8px),
+    calc(var(--py, 0) * 6px)
+  );
+}
+
+/* Square Minecraft Sun */
+.mc-sun-wrap {
+  position: absolute;
+  top: 10%;
+  right: 20%;
+  width: 76px;
+  height: 76px;
+  transition: transform 2.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 2s ease;
+}
+
+.weather-sunset .mc-sun-wrap {
+  transform: translate(-30px, 90px);
+}
+
+.weather-night .mc-sun-wrap {
+  opacity: 0;
+  transform: translate(-50px, 140px);
+}
+
+.mc-sun-core {
+  position: absolute;
+  inset: 8px;
+  background: #fffae0;
+  border: 4px solid #fed853;
+  box-shadow: 0 0 0 4px #e5a92a;
+  animation: mcSunPulse 4s ease-in-out infinite alternate;
+  transition: background 2s ease, border-color 2s ease, box-shadow 2s ease;
+}
+
+.weather-sunset .mc-sun-core {
+  background: #ffaa5b;
+  border-color: #e5532a;
+  box-shadow: 0 0 0 4px #9e2b16;
+}
+
+.mc-sun-glow {
+  position: absolute;
+  inset: -14px;
+  background: rgba(255, 235, 130, 0.25);
+  box-shadow: 0 0 45px 12px rgba(255, 220, 90, 0.4);
+}
+
+@keyframes mcSunPulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  100% { transform: scale(1.04); filter: brightness(1.12); }
+}
+
+/* Square Minecraft Moon */
+.mc-moon-wrap {
+  position: absolute;
+  top: 14%;
+  left: 18%;
+  width: 64px;
+  height: 64px;
+  opacity: 0;
+  transform: translateY(60px);
+  transition: transform 2.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 2s ease;
+}
+
+.weather-night .mc-moon-wrap {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mc-moon-core {
+  position: absolute;
+  inset: 0;
+  background: #e9f1fc;
+  border: 4px solid #cad7e8;
+  box-shadow: 0 0 0 3px #8c9fb6;
+}
+
+.mc-moon-glow {
+  position: absolute;
+  inset: -12px;
+  background: rgba(210, 230, 255, 0.2);
+  box-shadow: 0 0 35px 10px rgba(180, 215, 255, 0.35);
+}
+
+.crater {
+  position: absolute;
+  background: #a9bccc;
+}
+
+.crater-1 { top: 12px; left: 10px; width: 14px; height: 10px; }
+.crater-2 { top: 32px; left: 28px; width: 12px; height: 14px; }
+.crater-3 { top: 18px; left: 34px; width: 8px; height: 8px; }
+
+/* 5. Blocky Clouds */
+.mc-layer-clouds {
+  transform: translate(
+    calc(var(--px, 0) * 14px),
+    calc(var(--py, 0) * 10px)
+  );
+}
+
+.mc-cloud-track {
+  display: flex;
+  position: absolute;
+  width: 250%;
+  gap: 160px;
+}
+
+.track-1 {
+  top: 16%;
+  animation: mcCloudDrift 85s linear infinite;
+}
+
+.track-2 {
+  top: 28%;
+  opacity: 0.65;
+  animation: mcCloudDrift 130s linear infinite reverse;
+}
+
+.mc-block-cloud {
+  position: relative;
+  background: #ffffff;
+  box-shadow: 0 8px 0 #cfdceb, 0 16px 0 rgba(0, 0, 0, 0.08);
+  transition: background 2.5s ease, box-shadow 2.5s ease;
+}
+
+.cloud-type-a {
+  width: 260px;
+  height: 38px;
+  box-shadow: 
+    30px -16px 0 #ffffff,
+    70px -16px 0 #ffffff,
+    110px -28px 0 #ffffff,
+    150px -28px 0 #ffffff,
+    190px -16px 0 #ffffff,
+    0 8px 0 #d7e4f2;
+}
+
+.cloud-type-b {
+  width: 190px;
+  height: 32px;
+  box-shadow: 
+    20px -18px 0 #ffffff,
+    60px -18px 0 #ffffff,
+    100px -18px 0 #ffffff,
+    0 8px 0 #d7e4f2;
+}
+
+.cloud-type-c {
+  width: 310px;
+  height: 42px;
+  box-shadow: 
+    50px -22px 0 #ffffff,
+    90px -22px 0 #ffffff,
+    130px -36px 0 #ffffff,
+    170px -36px 0 #ffffff,
+    210px -22px 0 #ffffff,
+    0 10px 0 #d7e4f2;
+}
+
+.weather-sunset .mc-block-cloud {
+  background: #ffd3c2;
+  box-shadow: 0 8px 0 #9f5e71;
+}
+
+.weather-night .mc-block-cloud {
+  background: #223048;
+  box-shadow: 0 8px 0 #121c2c;
+}
+
+@keyframes mcCloudDrift {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* 6. Mountains and Hills */
+.mc-layer-mountains {
+  transform: translate(
+    calc(var(--px, 0) * 22px),
+    calc(var(--py, 0) * 14px)
+  );
+}
+
+.mc-mountains-svg {
+  position: absolute;
+  bottom: 12%;
+  left: -40px;
+  width: calc(100% + 80px);
+  height: 48vh;
+  shape-rendering: crispEdges;
+  transition: filter 2.5s ease;
+}
+
+.mountain-back-fill { fill: #3e4f65; }
+.mountain-front-fill { fill: #526882; }
+.mountain-snow { fill: #e8eff9; }
+
+.mc-layer-midground {
+  transform: translate(
+    calc(var(--px, 0) * 36px),
+    calc(var(--py, 0) * 20px)
+  );
+}
+
+.mc-hills-svg {
+  position: absolute;
+  bottom: 4%;
+  left: -40px;
+  width: calc(100% + 80px);
+  height: 42vh;
+  shape-rendering: crispEdges;
+  transition: filter 2.5s ease;
+}
+
+.hills-grass-fill { fill: #2f6d28; }
+.hills-dirt-fill { fill: #563c26; }
+
+/* Tree Colors (Voxel Pine / Oak) */
+.tree-trunk { fill: #442a17; }
+.tree-spruce-dark { fill: #173816; }
+.tree-spruce-mid { fill: #204b1e; }
+.tree-spruce-light { fill: #2a6128; }
+
+.weather-sunset .mc-mountains-svg,
+.weather-sunset .mc-hills-svg {
+  filter: sepia(0.35) hue-rotate(-20deg) brightness(0.9);
+}
+
+.weather-night .mc-mountains-svg,
+.weather-night .mc-hills-svg {
+  filter: brightness(0.32) hue-rotate(-25deg) contrast(1.1);
+}
+
+/* 7. Foreground Grass & Dirt Ledge */
+.mc-layer-foreground {
+  position: absolute;
+  bottom: -15px;
+  left: -50px;
+  right: -50px;
+  height: 80px;
+  transform: translate(
+    calc(var(--px, 0) * 48px),
+    calc(var(--py, 0) * 26px)
+  );
+  transition: filter 2.5s ease;
+}
+
+.weather-sunset .mc-layer-foreground { filter: sepia(0.35) brightness(0.9); }
+.weather-night .mc-layer-foreground { filter: brightness(0.3) hue-rotate(-20deg); }
+
+.mc-grass-top-rim {
+  height: 18px;
+  background: #509e2f;
+  border-top: 4px solid #73c838;
+  box-shadow: inset 0 -4px 0 #3a7522, 0 4px 0 #6e4e2f;
+}
+
+.mc-dirt-block-base {
+  height: calc(100% - 18px);
+  background: #865f3d;
+  background-image: 
+    radial-gradient(#5a3c22 18%, transparent 19%),
+    radial-gradient(#6c4a2c 18%, transparent 19%);
+  background-size: 16px 16px;
+  background-position: 0 0, 8px 8px;
+}
+
+/* 8. Floating Voxel Particles (XP Motes) */
+.mc-particles-field {
+  position: absolute;
+  inset: 0;
+}
+
+.mc-mote {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #76ff52;
+  box-shadow: 0 0 6px #76ff52;
+  opacity: 0;
+  animation: mcMoteRise 9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.mote-1 { left: 14%; bottom: 12%; animation-delay: 0s; }
+.mote-2 { left: 38%; bottom: 10%; animation-delay: 2.5s; background: #e5ff54; box-shadow: 0 0 6px #e5ff54; }
+.mote-3 { left: 68%; bottom: 14%; animation-delay: 4.8s; }
+.mote-4 { left: 86%; bottom: 8%; animation-delay: 1.8s; background: #54f3ff; box-shadow: 0 0 6px #54f3ff; }
+
+@keyframes mcMoteRise {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  15% { opacity: 0.85; }
+  85% { opacity: 0.6; }
+  100% { transform: translateY(-380px) scale(1.2); opacity: 0; }
+}
+
+/* 9. Contrast Vignette & Weather Switcher Button */
+.mc-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 40%, rgba(8, 14, 24, 0.4) 100%);
+}
+
+.weather-cycle-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #f1f5f9;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.weather-cycle-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.weather-cycle-button:active {
+  transform: translateY(0);
+}
+
+/* -----------------------------------------------------------------
+   Modal Backdrop & High-Priority Stacking (Fixes Z-Index issues)
+   ----------------------------------------------------------------- */
+.modal-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  background: rgba(5, 10, 20, 0.78) !important;
+  backdrop-filter: blur(8px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 1.25rem !important;
+}
+
+.overseer-modal {
+  position: relative !important;
+  z-index: 10000 !important;
+  background: #1b222e !important;
+  border: 2px solid #37465b !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+  width: 100% !important;
+  max-width: 520px !important;
+  border-radius: 8px !important;
+  padding: 1.75rem !important;
+  color: #f1f5f9 !important;
+}
+
+.overseer-modal .modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.overseer-modal .modal-close:hover {
+  color: #ffffff;
+}
+
+.overseer-tools {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.overseer-tools button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #252e3e;
+  border: 1px solid #3c4b63;
+  color: #f8fafc;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.overseer-tools button:hover {
+  background: #313d52;
+  border-color: #60a5fa;
+  transform: translateY(-1px);
+}

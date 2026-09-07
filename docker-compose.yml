@@ -1,0 +1,91 @@
+name: caenis
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: caenis_overseer
+      POSTGRES_USER: caenis_owner
+      POSTGRES_PASSWORD: ${DATABASE_OWNER_PASSWORD:?Run scripts/Initialize-Caenis.ps1}
+      CAENIS_DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Database password required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/01-runtime-user.sh:/docker-entrypoint-initdb.d/01-runtime-user.sh:ro
+    restart: unless-stopped
+    networks: [data]
+  core:
+    build:
+      context: .
+      dockerfile: backend-service/Dockerfile
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/caenis_overseer
+      DATABASE_USER: caenis
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Database password required}
+      SPRING_FLYWAY_USER: caenis_owner
+      SPRING_FLYWAY_PASSWORD: ${DATABASE_OWNER_PASSWORD:?Database owner password required}
+      CAENIS_PUBLIC_ORIGIN: ${CAENIS_PUBLIC_ORIGIN:-http://localhost:3000}
+      CAENIS_SECURE_COOKIES: ${CAENIS_SECURE_COOKIES:-true}
+      CAENIS_SESSION_SECRET: ${CAENIS_SESSION_SECRET:?Session secret required}
+      CAENIS_ENCRYPTION_KEY: ${CAENIS_ENCRYPTION_KEY:?Encryption key required}
+      CAENIS_ADMIN_USERNAME: ${CAENIS_ADMIN_USERNAME:-admin}
+      CAENIS_ADMIN_PASSWORD: ${CAENIS_ADMIN_PASSWORD:?Administrator password required}
+    depends_on: [postgres]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    restart: unless-stopped
+    networks: [data,app]
+  web:
+    build:
+      context: ./caenis-web
+      args:
+        CAENIS_BACKEND_URL: http://core:8080
+    environment:
+      CAENIS_BACKEND_URL: http://core:8080
+      CAENIS_SESSION_SECRET: ${CAENIS_SESSION_SECRET:?Session secret required}
+    depends_on: [core]
+    restart: unless-stopped
+    networks: [app]
+  gateway:
+    image: traefik:v3.4
+    command:
+      - --entrypoints.web.address=:80
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --api.dashboard=false
+      - --log.level=WARN
+    ports:
+      - "${CAENIS_BIND:-127.0.0.1}:${CAENIS_HTTP_PORT:-3000}:80"
+    volumes:
+      - ./docker/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    depends_on: [web,core]
+    restart: unless-stopped
+    networks: [app]
+  nifi:
+    profiles: [nifi]
+    image: apache/nifi:2.11.0
+    environment:
+      SINGLE_USER_CREDENTIALS_USERNAME: ${NIFI_USERNAME:-caenis}
+      SINGLE_USER_CREDENTIALS_PASSWORD: ${NIFI_PASSWORD:?NiFi password required}
+      NIFI_SENSITIVE_PROPS_KEY: ${NIFI_SENSITIVE_KEY:?NiFi sensitive key required}
+      NIFI_JVM_HEAP_INIT: 512m
+      NIFI_JVM_HEAP_MAX: 1g
+      NIFI_WEB_PROXY_HOST: localhost:8443
+    ports:
+      - "127.0.0.1:8443:8443"
+      - "${CAENIS_BIND:-127.0.0.1}:8085:8085"
+    volumes:
+      - nifi-conf:/opt/nifi/nifi-current/conf
+      - nifi-state:/opt/nifi/nifi-current/state
+      - nifi-flowfiles:/opt/nifi/nifi-current/flowfile_repository
+      - nifi-content:/opt/nifi/nifi-current/content_repository
+      - nifi-provenance:/opt/nifi/nifi-current/provenance_repository
+    restart: unless-stopped
+    networks: [app]
+volumes:
+  postgres-data:
+  nifi-conf:
+  nifi-state:
+  nifi-flowfiles:
+  nifi-content:
+  nifi-provenance:
+networks:
+  data:
+    internal: true
+  app:

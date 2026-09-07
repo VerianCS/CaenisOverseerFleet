@@ -1,0 +1,9 @@
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='caenis') THEN
+    GRANT USAGE ON SCHEMA public TO caenis;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO caenis;
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO caenis;
+    REVOKE UPDATE, DELETE, TRUNCATE ON audit_events FROM caenis;
+  END IF;
+END $$;
