@@ -1,216 +1,216 @@
-# Operación de Caenis
+# Operating Caenis
 
-## Instalación local en Windows
+## Local installation on Windows
 
-Requisitos: PowerShell 7, Docker Desktop con contenedores Linux. Para empaquetar el
-plugin y el gestor también necesitas JDK 21. Node no es necesario para levantar
-la consola mediante Docker. Si usas Python para aprovisionar NiFi, usa Conda.
+Requirements: PowerShell 7 and Docker Desktop with Linux containers. To package the
+plugin and the host manager you also need JDK 21. Node is not required to run the
+console through Docker. If you use Python to provision NiFi, use Conda.
 
-Desde la raíz:
+From the repository root:
 
 ```powershell
 pwsh ./scripts/Initialize-Caenis.ps1
 pwsh ./scripts/Start-Caenis.ps1
 ```
 
-La inicialización crea `.env` y restringe su acceso al usuario actual. No imprime
-contraseñas ni modifica un archivo existente. La cuenta inicial es `admin`;
-su contraseña está en `CAENIS_ADMIN_PASSWORD`. Abre
-[Caenis local](http://localhost:3000), inicia sesión y registra una instancia.
+Initialization creates `.env` and restricts its access to the current user. It does
+not print passwords or modify an existing file. The initial account is `admin`;
+its password is in `CAENIS_ADMIN_PASSWORD`. Open
+[Caenis locally](http://localhost:3000), sign in and register an instance.
 
-Estos comandos son de instalación/arranque y no se han ejecutado durante esta
-entrega. Docker ensambla sus imágenes cuando el operador solicita el arranque.
-No hay validaciones, pruebas ni CI programadas por esta entrega.
+These are installation/startup commands and were not executed as part of this
+delivery. Docker builds its images when the operator requests startup.
+This delivery schedules no validations, tests or CI.
 
-## Conectar un servidor Paper
+## Connecting a Paper server
 
-1. Empaqueta los tres artefactos JVM:
+1. Package the three JVM artifacts:
    `pwsh ./scripts/Package-Caenis.ps1`.
-2. Coloca `dist/caenis-overseer.jar` en `plugins/` del servidor Paper 1.21.11.
-3. En Fleet, registra un ID como `srv-survival-01`, guarda la clave y descarga
-   `config.yml`. Colócalo en `plugins/CaenisOverseer/config.yml`.
-4. Si Paper está en otra máquina, cambia `backend.url` a la dirección HTTPS
-   alcanzable del core. `localhost` siempre identifica la máquina del plugin.
-5. Reinicia Paper. El agente se inscribe con su clave y renueva su token de
-   quince minutos. Las métricas se envían cada cinco segundos.
-6. Activa RCON en `server.properties`:
-   `enable-rcon=true`, `rcon.port=25575` y una `rcon.password` propia.
-   Reinicia Paper y guarda esos datos en los ajustes de la instancia.
-   RCON debe permanecer en una red privada/VPN; el protocolo no cifra el tráfico.
+2. Place `dist/caenis-overseer.jar` in the `plugins/` directory of the Paper 1.21.11 server.
+3. In Fleet, register an ID such as `srv-survival-01`, save the key and download
+   `config.yml`. Place it at `plugins/CaenisOverseer/config.yml`.
+4. If Paper runs on another machine, change `backend.url` to the reachable HTTPS
+   address of the core. `localhost` always refers to the plugin's own machine.
+5. Restart Paper. The agent enrolls with its key and renews its fifteen-minute
+   token. Metrics are sent every five seconds.
+6. Enable RCON in `server.properties`:
+   `enable-rcon=true`, `rcon.port=25575` and your own `rcon.password`.
+   Restart Paper and save those values in the instance settings.
+   RCON must stay on a private network/VPN; the protocol does not encrypt traffic.
 
-La clave del agente también puede venir de `CAENIS_AGENT_SECRET`; el ID, de
-`CAENIS_INSTANCE_ID`; la URL, de `CAENIS_BACKEND_URL`. No hay una clave global
-que permita a una instancia hacerse pasar por otra.
+The agent key can also come from `CAENIS_AGENT_SECRET`; the ID from
+`CAENIS_INSTANCE_ID`; the URL from `CAENIS_BACKEND_URL`. There is no global key
+that would let one instance impersonate another.
 
-## Arranque y parada de Paper
+## Starting and stopping Paper
 
-RCON puede operar un proceso vivo, pero no arrancar uno detenido. Para el ciclo
-de vida se incluye `caenis-manager.jar`, un gestor que ejecuta únicamente
-directorios y JAR predefinidos.
+RCON can operate a live process, but it cannot start a stopped one. For lifecycle
+control, `caenis-manager.jar` is included: a manager that only runs predefined
+directories and JARs.
 
-- Crea, por ejemplo, `servers/survival/paper.jar`.
-- Lee y acepta tú mismo la EULA de Minecraft en `servers/survival/eula.txt`.
-  Caenis no la acepta automáticamente.
-- Copia `docker/manager/application-manager.example.yml` a
-  `runtime/application-manager.yml` y ajusta las instancias.
-- Ejecuta `pwsh ./scripts/Start-Manager.ps1`.
-- Si el core está en Docker Desktop, el gestor debe escuchar en una interfaz
-  privada accesible al contenedor: usa `-Bind <IP-privada>`, configura esa URL
-  en la consola y permite 8090 exclusivamente desde el core en el firewall.
-  `host.docker.internal` resuelve el host desde Docker Desktop.
-- Guarda la clave `CAENIS_MANAGER_KEY` en la conexión de esa instancia.
-- Usa Start / Stop / Restart en la página de la instancia.
+- Create, for example, `servers/survival/paper.jar`.
+- Read and accept the Minecraft EULA yourself in `servers/survival/eula.txt`.
+  Caenis does not accept it automatically.
+- Copy `docker/manager/application-manager.example.yml` to
+  `runtime/application-manager.yml` and adjust the instances.
+- Run `pwsh ./scripts/Start-Manager.ps1`.
+- If the core runs in Docker Desktop, the manager must listen on a private
+  interface reachable from the container: use `-Bind <private-IP>`, configure that
+  URL in the console and allow port 8090 only from the core in the firewall.
+  `host.docker.internal` resolves to the host from Docker Desktop.
+- Save the `CAENIS_MANAGER_KEY` key in that instance's connection settings.
+- Use Start / Stop / Restart on the instance page.
 
-Las órdenes son argumentos de ProcessBuilder, sin shell. El gestor no permite
-cargar ejecutables ni directorios desde una petición web. La parada envía
-`stop` por stdin y espera el guardado normal. Si tarda más de 35 segundos,
-reporta que continúa; no mata el proceso ni presenta un reinicio como terminado.
-Los registros del juego permanecen en el directorio `logs/` de Paper.
+Commands are ProcessBuilder arguments, with no shell. The manager does not allow
+executables or directories to be supplied by a web request. Stop sends
+`stop` through stdin and waits for the normal save. If it takes longer than 35 seconds,
+it reports that shutdown is still in progress; it does not kill the process or report
+a restart as finished. Game logs remain in Paper's `logs/` directory.
 
-El gestor mantiene la propiedad del proceso en memoria y un marcador con PID y
-fecha de inicio en el directorio de la instancia. Después de una caída del gestor,
-rechaza un segundo arranque mientras aquel proceso siga vivo. Puede detenerse
-desde RCON antes de recuperar el control normal. No adopta procesos arbitrarios.
+The manager keeps process ownership in memory, plus a marker with the PID and
+start time in the instance directory. After a manager crash, it refuses a second
+start while that process is still alive. That process can be stopped through RCON
+before normal control is regained. It does not adopt arbitrary processes.
 
 ## Roles
 
-| Rol | Acceso |
+| Role | Access |
 | --- | --- |
-| SuperAdmin | Flota, mapa, RCON sin plantillas, ciclo de vida, usuarios, conexiones, agentes y entrenamiento de baselines. |
-| Moderator | Salud y jugadores; mapa; mitigaciones predefinidas; historial de comandos. |
-| Analyst / Observer | Mapa, alertas y contadores. UUID/nombre de jugador sustituidos por un alias estable. Sin roster, RCON ni ajustes. |
+| SuperAdmin | Fleet, map, unrestricted RCON, lifecycle, users, connections, agents and baseline training. |
+| Moderator | Health and players; map; predefined mitigations; command history. |
+| Analyst / Observer | Map, alerts and counters. Player UUID/name replaced by a stable alias. No roster, RCON or settings. |
 
-La API consulta la sesión y el rol vigente para cada petición. La protección de
-rutas de Next.js es una primera barrera adicional. Las sesiones usan cookies
-HttpOnly, SameSite=Strict, duración de ocho horas y revocación persistida.
-Los cambios de cuenta revocan sesiones previas. Las mutaciones web requieren CSRF.
+The API checks the session and the current role on every request. Next.js route
+protection is an additional first barrier. Sessions use HttpOnly,
+SameSite=Strict cookies, an eight-hour lifetime and persisted revocation.
+Account changes revoke previous sessions. Web mutations require CSRF.
 
-## Detección y contención
+## Detection and containment
 
-El plugin mide desde BlockDamageEvent hasta BlockBreakEvent y descarta la
-fiabilidad temporal si cambian herramienta, efectos o estado del jugador.
-No interpreta el intervalo entre dos bloques diferentes como tiempo de minería.
-Los bloques desconocidos no reciben una dureza inventada.
+The plugin measures from BlockDamageEvent to BlockBreakEvent and discards timing
+reliability if the tool, effects or player state change.
+It never interprets the interval between two different blocks as mining time.
+Unknown blocks are not given an invented hardness.
 
-La oclusión considera las seis caras sin cargar chunks vecinos. La topología
-incompleta no alimenta ese detector. La ventana contiene hasta 25 minerales
-valiosos de quince minutos, con un mínimo de diez muestras y umbral inicial 75%.
+Occlusion considers the six faces without loading neighboring chunks. Incomplete
+topology does not feed that detector. The window holds up to 25 valuable ores
+from the last fifteen minutes, with a minimum of ten samples and an initial threshold of 75%.
 
-La referencia nativa de velocidad que expone Paper limita conservadoramente el
-umbral físico cuando intervienen atributos del juego. El plugin captura esa
-referencia; la comparación y la decisión permanecen en el core.
+The native speed reference exposed by Paper conservatively bounds the physical
+threshold when game attributes are involved. The plugin captures that reference;
+the comparison and the decision remain in the core.
 
-Las baselines son modelos estadísticos Beta-Binomial por instancia/jugador/mundo.
-Se entrenan desde la consola sobre un período explícitamente revisado como
-legítimo, con al menos cien muestras. Persisten después de reiniciar. No se
-incluye un clasificador supervisado preentrenado ni se afirma una precisión
-medida: no se suministraron datos etiquetados.
+Baselines are Beta-Binomial statistical models per instance/player/world.
+They are trained from the console over a period explicitly reviewed as
+legitimate, with at least one hundred samples. They persist across restarts.
+No pre-trained supervised classifier is included and no measured accuracy is
+claimed: no labeled data was supplied.
 
-La contención automática está desactivada inicialmente. Al activarla exige tres
-avisos críticos de minería rápida en un minuto; limita cada jugador a una acción
-cada cinco minutos y cada instancia a cinco jugadores por minuto. La oclusión
-nunca activa contención por sí sola. Los eventos con más de quince segundos de
-antigüedad tampoco activan contención al recuperarse de una interrupción. Freeze dura como máximo cinco minutos y
-desaparece al reiniciar el plugin.
+Automatic containment is disabled initially. When enabled, it requires three
+critical fast-mining alerts within one minute; it limits each player to one action
+every five minutes and each instance to five players per minute. Occlusion
+never triggers containment on its own. Events older than fifteen seconds do not
+trigger containment either when recovering from an interruption. Freeze lasts at
+most five minutes and is cleared when the plugin restarts.
 
-## Entrega, pérdidas y retención
+## Delivery, loss and retention
 
-- Ring buffer SPSC: capacidad predeterminada 8.192. Si se llena, se descarta el
-  evento nuevo y aumenta el contador de descartes.
-- El único trabajador del agente serializa, escribe al spool y realiza HTTP.
-  Ninguna llamada de red o escritura del spool ocurre en el tick.
-- Spool local: 128 MiB por defecto, configurable hasta 1 GiB. Borra primero los
-  lotes más antiguos al alcanzar el límite. Edad máxima de envío: 24 horas.
-- Reintentos exponenciales entre 1 y 30 segundos. El nonce y los IDs de evento
-  se conservan. Respuestas permanentes inválidas van a una cuarentena acotada.
-- En una terminación abrupta puede perderse la cola aún no escrita. No se
-  promete entrega exactamente una vez; la persistencia deduplica reintentos.
-- Métricas históricas: siete días. Eventos crudos: treinta días. Recibos:
-  siete días. Alertas y auditoría no se eliminan por mantenimiento automático.
-- La retención y el detector de latidos son tareas funcionales de la plataforma,
-  no tareas de validación.
+- SPSC ring buffer: default capacity 8,192. When full, the new event is discarded
+  and the drop counter increases.
+- The agent's single worker serializes, writes to the spool and performs HTTP.
+  No network call or spool write happens on the tick.
+- Local spool: 128 MiB by default, configurable up to 1 GiB. The oldest batches
+  are deleted first when the limit is reached. Maximum delivery age: 24 hours.
+- Exponential retries between 1 and 30 seconds. The nonce and event IDs are
+  preserved. Permanently invalid responses go to a bounded quarantine.
+- On abrupt termination, the queue not yet written to disk may be lost. Exactly-once
+  delivery is not promised; persistence deduplicates retries.
+- Historical metrics: seven days. Raw events: thirty days. Receipts:
+  seven days. Alerts and audit are not deleted by automatic maintenance.
+- Retention and the heartbeat detector are functional platform tasks,
+  not validation tasks.
 
-NiFi es opcional. Véase [su procedimiento](../docker/nifi/README.md). Las firmas
-se verifican antes de la admisión a la cola principal. La firma original vuelve a
-comprobarse al persistir. Los bytes del JSON se conservan sin QueryRecord ni
-transformaciones que invaliden la firma.
+NiFi is optional. See [its procedure](../docker/nifi/README.md). Signatures
+are verified before admission to the main queue. The original signature is checked
+again when persisting. The JSON bytes are preserved without QueryRecord or
+transformations that would invalidate the signature.
 
-## RCON y auditoría
+## RCON and audit
 
-Las conexiones son persistentes, con una orden en vuelo por nodo y una cola
-global acotada. La respuesta se delimita con una segunda solicitud RCON y se
-limita a 256 KiB; no se corta silenciosamente en el primer paquete.
+Connections are persistent, with one in-flight command per node and a bounded
+global queue. The response is delimited with a second RCON request and
+limited to 256 KiB; it is not silently cut off at the first packet.
 
-Estados registrados: QUEUED, DISPATCHING, SUCCEEDED, REJECTED o UNCERTAIN.
-Un timeout no demuestra que el comando no se ejecutara. Consulta el servidor
-antes de repetir. La terminal recibe fragmentos por STOMP y recupera el resultado
-final desde el historial si se pierde la conexión web.
+Recorded states: QUEUED, DISPATCHING, SUCCEEDED, REJECTED or UNCERTAIN.
+A timeout does not prove that the command was not executed. Check the server
+before repeating it. The terminal receives fragments over STOMP and retrieves the
+final result from the history if the web connection is lost.
 
-El usuario de aplicación carece de UPDATE/DELETE sobre la auditoría; un trigger
-también rechaza UPDATE/DELETE/TRUNCATE. Un administrador de PostgreSQL conserva
-autoridad sobre su base: esta protección no es una certificación externa WORM.
+The application user lacks UPDATE/DELETE on the audit table; a trigger
+also rejects UPDATE/DELETE/TRUNCATE. A PostgreSQL administrator retains
+authority over their database: this protection is not an external WORM certification.
 
 ## HTTPS
 
-Para publicar en un dominio propio:
+To publish on your own domain:
 
-1. Configura DNS hacia tu host y permite 80/443.
-2. En `.env`, define:
-   `CAENIS_PUBLIC_ORIGIN=https://tu-dominio`,
-   `CAENIS_HOST=tu-dominio`, `CAENIS_SECURE_COOKIES=true`,
-   `CAENIS_BIND=0.0.0.0`, `CAENIS_HTTP_PORT=80` y
-   `ACME_EMAIL=tu-correo`.
-3. Ejecuta
+1. Point DNS to your host and allow ports 80/443.
+2. In `.env`, set:
+   `CAENIS_PUBLIC_ORIGIN=https://your-domain`,
+   `CAENIS_HOST=your-domain`, `CAENIS_SECURE_COOKIES=true`,
+   `CAENIS_BIND=0.0.0.0`, `CAENIS_HTTP_PORT=80` and
+   `ACME_EMAIL=your-email`.
+3. Run
    `docker compose -f docker-compose.yml -f docker-compose.https.yml up --build -d`.
-4. Para usar el conduit en esa misma dirección, añade `--profile nifi` antes
-   de `up` y configura `https://tu-dominio/telemetry` como URL de telemetría.
+4. To use the conduit on that same address, add `--profile nifi` before
+   `up` and configure `https://your-domain/telemetry` as the telemetry URL.
 
-Traefik conserva certificados en un volumen y dirige /ws al core.
-El despliegue publicado no se ha realizado aquí: no se proporcionó dominio,
-host de destino ni instancias reales.
+Traefik keeps certificates in a volume and routes /ws to the core.
+A published deployment has not been performed here: no domain,
+target host or real instances were provided.
 
 ## Vault
 
-RCON puede usar una contraseña cifrada AES-256-GCM o una referencia a Vault KV v2.
-Para Vault, configura `VAULT_ADDR=https://vault...` y `VAULT_TOKEN_FILE` en el
-core, monta el archivo del token como solo lectura y guarda en la consola un
-path como `secret/data/caenis/survival`. El secreto debe contener
-`data.data.password`. Cada comando obtiene el valor actual y abre una nueva
-conexión, por lo que la rotación aplicada en Vault/Paper se usa de inmediato.
-Vault no convierte el RCON estándar en credenciales efímeras: su rotación debe
-coordinarse con la configuración y reinicio de Paper.
+RCON can use an AES-256-GCM encrypted password or a reference to Vault KV v2.
+For Vault, set `VAULT_ADDR=https://vault...` and `VAULT_TOKEN_FILE` on the
+core, mount the token file read-only and save a path such as
+`secret/data/caenis/survival` in the console. The secret must contain
+`data.data.password`. Each command fetches the current value and opens a new
+connection, so a rotation applied in Vault/Paper takes effect immediately.
+Vault does not turn standard RCON into ephemeral credentials: its rotation must
+be coordinated with Paper's configuration and restart.
 
-## Métricas OpenTelemetry
+## OpenTelemetry metrics
 
-El core incluye el registro Micrometer OTLP. Para conectarlo a tu collector,
-añade a su entorno `OTEL_METRICS_ENABLED=true` y
-`OTEL_METRICS_URL=http://<collector-privado>:4318/v1/metrics`.
-El exportador está desactivado hasta disponer de un destino real. El endpoint
-de métricas de Actuator requiere una sesión SuperAdmin y no se publica por separado.
+The core includes the Micrometer OTLP registry. To connect it to your collector,
+add `OTEL_METRICS_ENABLED=true` and
+`OTEL_METRICS_URL=http://<private-collector>:4318/v1/metrics` to its environment.
+The exporter is disabled until a real destination is available. The Actuator
+metrics endpoint requires a SuperAdmin session and is not published separately.
 
-## Copias y recuperación
+## Backups and recovery
 
-`pwsh ./scripts/Backup-Caenis.ps1` crea un dump binario en
-`runtime/backups/`. Protege aparte `.env`, sobre todo
-`CAENIS_ENCRYPTION_KEY`, los volúmenes de NiFi y los mundos Paper.
+`pwsh ./scripts/Backup-Caenis.ps1` creates a binary dump in
+`runtime/backups/`. Protect `.env` separately, especially
+`CAENIS_ENCRYPTION_KEY`, the NiFi volumes and the Paper worlds.
 
-Para restaurar una copia en una base nueva, detenida para escrituras:
+To restore a backup into a new database, stopped for writes:
 
 ```powershell
 docker compose stop core web
-docker compose cp ./runtime/backups/TU-COPIA.dump postgres:/tmp/restore.dump
+docker compose cp ./runtime/backups/YOUR-BACKUP.dump postgres:/tmp/restore.dump
 docker compose exec -T postgres pg_restore -U caenis_owner -d caenis_overseer --no-owner /tmp/restore.dump
 docker compose up -d core web
 ```
 
-Usa una base vacía; no se incluyen flags destructivos de limpieza. La copia de
-PostgreSQL no contiene los mundos, el spool local ni los certificados.
+Use an empty database; no destructive cleanup flags are included. The
+PostgreSQL backup does not contain the worlds, the local spool or the certificates.
 
-## Límites de esta entrega
+## Limits of this delivery
 
-El código y los procedimientos están entregados, pero no se han ejecutado
-compilaciones, pruebas, validaciones visuales, escaneos ni despliegues.
-No existen resultados de rendimiento o conformidad de producción.
-El diseño utiliza un único core activo y admite hasta 256 instancias registradas.
-La disponibilidad de una red real, las credenciales y la aceptación de EULA
-pertenecen a la instalación del operador.
+The code and procedures are delivered, but no builds, tests, visual validations,
+scans or deployments have been run.
+There are no production performance or compliance results.
+The design uses a single active core and supports up to 256 registered instances.
+The availability of a real network, the credentials and the EULA acceptance
+belong to the operator's installation.
