@@ -3,7 +3,7 @@
 ## Local installation on Windows
 
 Requirements: PowerShell 7 and Docker Desktop with Linux containers. To package the
-plugin and the host manager you also need JDK 21. Node is not required to run the
+the host manager you also need JDK 21; the plugin needs JDK 26 (it targets Java 25). Node is not required to run the
 console through Docker.
 
 From the repository root:
@@ -26,7 +26,7 @@ This delivery schedules no validations, tests or CI.
 
 1. Package the three JVM artifacts:
    `pwsh ./scripts/Package-Caenis.ps1`.
-2. Place `dist/caenis-overseer.jar` in the `plugins/` directory of the Paper 1.21.11 server.
+2. Place `dist/caenis-overseer.jar` in the `plugins/` directory of a Paper 26.3 server. Paper 26.x requires Java 25 or newer; with the host manager, point `caenis.manager.java-command` at that JVM.
 3. In Fleet, register an ID such as `srv-survival-01`, save the key and download
    `config.yml`. Place it at `plugins/CaenisOverseer/config.yml`.
 4. If Paper runs on another machine, change `backend.url` to the reachable HTTPS

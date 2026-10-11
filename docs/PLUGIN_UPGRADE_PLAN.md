@@ -13,6 +13,20 @@ _Written 2026-10-11._
 
 **Recommendation:** build and ship against **26.2** now, which is Paper's newest stable line. Move to **26.3** in a one-line follow-up (step 8) once Paper publishes a `-stable` 26.3 build. Plugin code written for 26.2 should carry over, because Paper's 26.3 notes list only additions and deprecations, none of which this plugin uses.
 
+## Progress (branch `claude/paper-26.3`)
+
+The user chose to go straight to **26.3**, so the API is pinned to the newest beta build, `26.3.build.174-beta`. Re-pin when Paper publishes a stable build.
+
+| Step | Status |
+| --- | --- |
+| 1. Toolchain | Done. The plugin compiles with a **JDK 26 toolchain** to **Java 25 bytecode** (`jvmTarget = JVM_25`, `--release 25`), because JDK 25 is not installed locally. Kotlin moved to **2.3.21** across the repo, since 2.2.21 has no JVM 25 target. The Spring modules' `kotlin.version` moved with it. Shadow 8.3.8 relocates Java 25 classes without problems. The core's Docker build is unaffected: it still builds with only JDK 21 available. |
+| 2. Dependency + descriptor | Done. `paper-api:26.3.build.174-beta` and `api-version: '26.3'`. |
+| 3. API breaks | None. The code compiles against 26.3 unchanged. The only API warning is `Player#isOnGround` being deprecated as client-controlled. It was already deprecated in 1.21.11, and spoofing it can only make the expected dig time longer, so it is left as is. |
+| 4. World identity | Not started. This is a separate change, because `getName()` is obsolete but not deprecated. |
+| 5. Detector data | Checked. Comparing the `Material` enums of 1.21.11 and 26.3 shows 157 new constants, and none of them are ores, pickaxes or tracked hard blocks. The table needs no 26.3 changes. The gaps it already had are covered in the PR. |
+| 6. Real-server verification | **Pending.** It needs a Paper 26.3 server, which means downloading the jar and having the operator accept the Minecraft EULA. |
+| 7. Docs | README and OPERATIONS updated to Paper 26.3, Java 25 and Kotlin 2.3. |
+
 ## What changed upstream that affects us
 
 1. **Java 25 is required from 26.1.** Paper 26.x servers need Java 25, and the `paper-api` 26.x jars are Java 25 class files.

@@ -7,10 +7,10 @@
 *Keep the tick for the game.*
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-2.3-7F52FF?logo=kotlin&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.5-6DB33F?logo=springboot&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
-![PaperMC](https://img.shields.io/badge/Paper-1.21.11-F7CF0D)
+![PaperMC](https://img.shields.io/badge/Paper-26.3-F7CF0D)
 ![PostGIS](https://img.shields.io/badge/PostgreSQL_16-PostGIS_3.4-336791?logo=postgresql&logoColor=white)
 
 </div>
@@ -72,7 +72,7 @@ flowchart TB
 
     subgraph Host["Game host(s)"]
         MGR["Host manager<br/>caenis-manager.jar :8090"]
-        subgraph Paper["Paper 1.21.11"]
+        subgraph Paper["Paper 26.3"]
             AGENT["caenis-overseer plugin<br/>SPSC ring buffer → disk spool"]
         end
     end
@@ -197,7 +197,7 @@ The configured action is either `kick` or `freeze`. Freeze uses the plugin's con
 | --- | --- |
 | Docker with Compose v2 | Running the stack |
 | PowerShell 7 (`pwsh`) | The helper scripts (Windows, Linux or macOS) |
-| JDK 21 | Building the plugin and host-manager JARs |
+| JDK 21 and JDK 26 | Building the host-manager JAR (21) and the plugin JAR (26 toolchain, Java 25 bytecode) |
 | Node 24 + pnpm 10 | Working on the web console outside Docker (optional) |
 
 ### 1. Generate secrets
@@ -248,7 +248,7 @@ Open <http://localhost:3000>. Choose **Open console** and sign in as `admin` usi
    ```powershell
    pwsh ./scripts/Package-Caenis.ps1   # → dist/caenis-overseer.jar, caenis-core.jar, caenis-manager.jar
    ```
-2. **Install the agent** by copying `dist/caenis-overseer.jar` into the server's `plugins/` directory (Paper **1.21.11**).
+2. **Install the agent** by copying `dist/caenis-overseer.jar` into the server's `plugins/` directory (Paper **26.3**, which runs on Java 25 or newer).
 3. **Register the instance** under **Fleet** with an ID such as `srv-survival-01`. Save the agent key it shows; it is displayed only once. Download the generated `config.yml` into `plugins/CaenisOverseer/config.yml`:
    ```yaml
    instance:
@@ -382,7 +382,7 @@ The full contracts (signing, limits, STOMP rules, host-manager API) are in [`doc
 ## Development
 
 ```bash
-# JVM modules (Gradle 8.14 wrapper, JDK 21 toolchain)
+# JVM modules (Gradle 8.14 wrapper; JDK 21 toolchain, JDK 26 for the plugin)
 ./gradlew :paper-plugin:shadowJar                       # → paper-plugin/build/libs/caenis-overseer.jar
 ./gradlew :backend-service:bootJar                      # → caenis-core.jar
 ./gradlew :backend-service-servermanager:bootJar        # → caenis-manager.jar
@@ -399,7 +399,7 @@ CAENIS_BACKEND_URL=http://127.0.0.1:8080 CAENIS_SESSION_SECRET=<same as core> pn
 
 > The `postgres` service is only on an internal Docker network. To reach it from your host during development, add a temporary `ports` mapping.
 
-**Tech stack:** Kotlin 2.2 · JVM 21 · Paper API 1.21.11 · kotlinx.serialization · Spring Boot 3.5 (Web, Security, WebSocket/STOMP, JDBC/JPA, Actuator) · Flyway · Nimbus JOSE · Micrometer OTLP · PostgreSQL 16 + PostGIS 3.4 · Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · shadcn/ui · Traefik 3.4 · Docker Compose.
+**Tech stack:** Kotlin 2.3 · JVM 21 (plugin: Java 25) · Paper API 26.3 · kotlinx.serialization · Spring Boot 3.5 (Web, Security, WebSocket/STOMP, JDBC/JPA, Actuator) · Flyway · Nimbus JOSE · Micrometer OTLP · PostgreSQL 16 + PostGIS 3.4 · Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · shadcn/ui · Traefik 3.4 · Docker Compose.
 
 ### Backups
 
