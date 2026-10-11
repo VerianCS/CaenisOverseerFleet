@@ -2,16 +2,22 @@ package com.enderstorage.overseer.service
 
 import com.enderstorage.overseer.fleet.AuditService
 import com.enderstorage.overseer.fleet.FleetService
-import org.springframework.jdbc.core.JdbcTemplate
+import com.enderstorage.overseer.repository.*
 import org.springframework.messaging.simp.SimpMessagingTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentHashMap
 
 @Service
-class LiveChanges(private val messaging: SimpMessagingTemplate, private val fleet: FleetService, private val audit: AuditService, private val db: JdbcTemplate) {
+class LiveChanges(
+    private val messaging: SimpMessagingTemplate, private val fleet: FleetService, private val audit: AuditService,
+    private val samples: HealthSampleRepository, private val receipts: IngressReceiptRepository,
+    private val events: MiningEventRepository, private val limits: InterventionLimitRepository
+) {
     private val dirty = ConcurrentHashMap.newKeySet<String>()
     private val unreachable = ConcurrentHashMap.newKeySet<String>()
     fun changed(kind: String) {
@@ -41,9 +47,10 @@ class LiveChanges(private val messaging: SimpMessagingTemplate, private val flee
     // Operational retention, not a validation task.
     @Scheduled(fixedDelay=3600000)
     fun retention() {
-        db.update("DELETE FROM health_samples WHERE recorded_at<now()-interval '7 days'")
-        db.update("DELETE FROM ingress_receipts WHERE received_at<now()-interval '7 days'")
-        db.update("DELETE FROM mining_events WHERE created_at<now()-interval '30 days'")
-        db.update("DELETE FROM intervention_limits WHERE last_action<now()-interval '7 days'")
+        val now = Instant.now()
+        samples.deleteOlderThan(now.minus(7, ChronoUnit.DAYS))
+        receipts.deleteOlderThan(now.minus(7, ChronoUnit.DAYS))
+        events.deleteOlderThan(now.minus(30, ChronoUnit.DAYS))
+        limits.deleteOlderThan(now.minus(7, ChronoUnit.DAYS))
     }
 }

@@ -9,7 +9,9 @@ import com.nimbusds.jwt.SignedJWT
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.ApplicationArguments
 import org.springframework.boot.ApplicationRunner
-import org.springframework.jdbc.core.JdbcTemplate
+import com.enderstorage.overseer.entity.AuthSession
+import com.enderstorage.overseer.repository.AuthSessionRepository
+import com.enderstorage.overseer.repository.UserAccountRepository
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.stereotype.Service
@@ -26,7 +28,8 @@ data class Session(val token: String, val account: Account, val expiresAt: Insta
 
 @Service
 class AuthService(
-    private val db: JdbcTemplate,
+    private val accounts: UserAccountRepository,
+    private val sessions: AuthSessionRepository,
     @Value("\${caenis.session-secret}") secret: String,
     @Value("\${caenis.bootstrap-username}") private val adminName: String,
     @Value("\${caenis.bootstrap-password}") private val adminPassword: String
@@ -36,19 +39,17 @@ class AuthService(
     private val dummyHash = passwords.encode(UUID.randomUUID().toString())
     override fun run(args: ApplicationArguments) {
         require(adminPassword.toByteArray().size in 16..72) { "Bootstrap password must contain 16 to 72 bytes" }
-        db.update("INSERT INTO accounts(id, username, password_hash, role) VALUES (?, ?, ?, 'SUPERADMIN') ON CONFLICT(username) DO NOTHING",
-            UUID.randomUUID(), adminName, passwords.encode(adminPassword))
+        accounts.insertAdminIfAbsent(UUID.randomUUID(), adminName, passwords.encode(adminPassword))
     }
 
     fun login(username: String, password: String): Session? {
-        val rows = db.queryForList("SELECT * FROM accounts WHERE username = ?", username)
-        val row = rows.firstOrNull()
-        val valid = passwords.matches(password, row?.get("password_hash") as? String ?: dummyHash)
-        if (!valid || row == null || row["enabled"] != true) return null
-        val account = Account(row["id"] as UUID, row["username"] as String, Role.valueOf(row["role"] as String))
+        val row = accounts.findByUsername(username)
+        val valid = passwords.matches(password, row?.passwordHash ?: dummyHash)
+        if (!valid || row == null || !row.enabled) return null
+        val account = Account(row.id, row.username, row.role)
         val id = UUID.randomUUID()
         val expires = Instant.now().plusSeconds(8 * 3600)
-        db.update("INSERT INTO sessions(id, account_id, expires_at) VALUES (?, ?, ?)", id, account.id, java.sql.Timestamp.from(expires))
+        sessions.save(AuthSession(id, account.id, expires))
         val claims = JWTClaimsSet.Builder().issuer("caenis").audience("caenis-console").subject(account.id.toString())
             .jwtID(id.toString()).claim("role", account.role.name).claim("username", account.username)
             .issueTime(Date()).expirationTime(Date.from(expires)).build()
@@ -56,47 +57,22 @@ class AuthService(
         jwt.sign(MACSigner(key))
         return Session(jwt.serialize(), account, expires)
     }
-    fun authenticate(token: String): Account? {
-        try {
-            val claims = claims(token)
-            if (claims == null) {
-                println(">>> [AuthService] JWT Signature or Claims validation FAILED")
-                return null
-            }
-            println(">>> [AuthService] JWT valid. SessionID=${claims.jwtid}, AccountID=${claims.subject}")
-
-            val sql = "SELECT a.id, a.username, a.role FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.id = ? AND a.id = ? AND s.expires_at > now() AND a.enabled"
-
-            val rows = db.query(sql, { rs, _ ->
-                val rawId = rs.getObject("id")
-                val uuid = if (rawId is UUID) rawId else UUID.fromString(rawId.toString())
-                Account(uuid, rs.getString("username"), Role.valueOf(rs.getString("role")))
-            }, UUID.fromString(claims.jwtid), UUID.fromString(claims.subject))
-
-            if (rows.isEmpty()) {
-                println(">>> [AuthService] No active session found in DB for session_id=${claims.jwtid}. Checking why...")
-                val count = db.queryForObject("SELECT count(*) FROM sessions WHERE id = ?", Long::class.java, UUID.fromString(claims.jwtid))
-                println(">>> [AuthService] Does session exist in DB at all? Count: $count")
-            }
-
-            return rows.firstOrNull()
-        } catch (e: Throwable) {
-            println(">>> [AuthService EXCEPTION] in authenticate(): ${e.javaClass.simpleName} - ${e.message}")
-            e.printStackTrace()
-            return null
-        }
-    }
+    fun authenticate(token: String): Account? = runCatching {
+        val claims = claims(token) ?: return null
+        sessions.findActiveAccount(UUID.fromString(claims.jwtid), UUID.fromString(claims.subject))
+            ?.let { Account(it.id, it.username, it.role) }
+    }.getOrNull()
     private fun claims(token: String): JWTClaimsSet? {
         val jwt = SignedJWT.parse(token)
         if (jwt.header.algorithm != JWSAlgorithm.HS256 || !jwt.verify(MACVerifier(key))) return null
         return jwt.jwtClaimsSet.takeIf { it.issuer == "caenis" && "caenis-console" in it.audience && it.expirationTime.after(Date()) }
     }
     fun logout(token: String) {
-        runCatching { claims(token)?.getJWTID()?.let { db.update("DELETE FROM sessions WHERE id=?", UUID.fromString(it)) } }
+        runCatching { claims(token)?.getJWTID()?.let { sessions.deleteById(UUID.fromString(it)) } }
     }
     @Scheduled(fixedDelay = 3600000)
-    fun expireSessions() { db.update("DELETE FROM sessions WHERE expires_at < now()") }
+    fun expireSessions() { sessions.deleteExpired() }
 
     @Transactional
-    fun revokeAccount(id: UUID) { db.update("DELETE FROM sessions WHERE account_id=?", id) }
+    fun revokeAccount(id: UUID) { sessions.deleteByAccount(id) }
 }

@@ -1,6 +1,11 @@
 package com.enderstorage.overseer.controller
 
+import com.enderstorage.overseer.entity.HealthSample
+import com.enderstorage.overseer.entity.IngressReceiptId
 import com.enderstorage.overseer.fleet.FleetService
+import com.enderstorage.overseer.repository.HealthSampleRepository
+import com.enderstorage.overseer.repository.IngressReceiptRepository
+import com.enderstorage.overseer.repository.InstanceRepository
 import com.enderstorage.overseer.security.Secrets
 import com.enderstorage.overseer.service.MiningTelemetryService
 import com.enderstorage.overseer.service.LiveChanges
@@ -8,8 +13,8 @@ import com.enderstorage.sentinel.dto.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
-import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
@@ -22,7 +27,8 @@ import java.util.Base64
 @RequestMapping("/api/v1/agent/{id}")
 class AgentController(
     private val fleet: FleetService, private val secrets: Secrets, private val json: ObjectMapper,
-    private val db: JdbcTemplate, private val mining: MiningTelemetryService, private val changes: LiveChanges
+    private val instances: InstanceRepository, private val receipts: IngressReceiptRepository,
+    private val samples: HealthSampleRepository, private val mining: MiningTelemetryService, private val changes: LiveChanges
 ) {
     @PostMapping("/{purpose}")
     @Transactional
@@ -36,21 +42,21 @@ class AgentController(
         val sentAt = timestamp.toLongOrNull() ?: unauthorized()
         if (sentAt > System.currentTimeMillis() + 60000 || sentAt < System.currentTimeMillis() - (if(purpose == "mining") 86400000 else 60000)) unauthorized()
         val nonceId = runCatching { UUID.fromString(nonce) }.getOrElse { unauthorized() }
-        db.queryForList("SELECT id FROM instances WHERE id=? FOR UPDATE",id)
+        val locked = instances.lockById(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Instance not found")
         val node = fleet.get(id)
         if (!node.enabled) unauthorized()
         val expected = RequestSigning.sign(secrets.decrypt(node.agentSecret),id,purpose,timestamp,nonce,bytes)
         if (!RequestSigning.equal(signature,expected)) unauthorized()
         if (purpose in listOf("heartbeat","config")) {
             val token = request.getHeader("X-Caenis-Token") ?: unauthorized()
-            val stored = db.queryForList("SELECT agent_token_hash FROM instances WHERE id=? AND agent_token_expires_at>now()",id).firstOrNull()
-            if (stored == null || !RequestSigning.equal(stored["agent_token_hash"] as? String ?: "",secrets.hash(token))) unauthorized()
+            val stored = instances.activeTokenHash(id)
+            if (stored == null || !RequestSigning.equal(stored,secrets.hash(token))) unauthorized()
         }
         val hash = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(bytes))
-        val inserted = db.update("INSERT INTO ingress_receipts(instance_id,nonce,purpose,body_hash) VALUES (?,?,?,?) ON CONFLICT DO NOTHING",id,nonceId,purpose,hash)
+        val inserted = receipts.insertIfAbsent(id,nonceId,purpose,hash)
         if (inserted == 0) {
-            val previous = db.queryForMap("SELECT purpose,body_hash FROM ingress_receipts WHERE instance_id=? AND nonce=?",id,nonceId)
-            if (previous["purpose"] != purpose || previous["body_hash"] != hash) unauthorized()
+            val previous = receipts.findByIdOrNull(IngressReceiptId(id,nonceId)) ?: unauthorized()
+            if (previous.purpose != purpose || previous.bodyHash != hash) unauthorized()
             if (purpose == "enroll") throw ResponseStatusException(HttpStatus.CONFLICT, "Enrollment already processed; use a new nonce")
             return AgentReply(node.configuration)
         }
@@ -58,7 +64,8 @@ class AgentController(
             "enroll" -> {
                 val token = secrets.randomToken()
                 val expires = Instant.now().plusSeconds(900)
-                db.update("UPDATE instances SET agent_token_hash=?,agent_token_expires_at=? WHERE id=?",secrets.hash(token),java.sql.Timestamp.from(expires),id)
+                locked.agentTokenHash = secrets.hash(token)
+                locked.agentTokenExpiresAt = expires
                 Enrollment(token,expires.toEpochMilli(),node.configuration)
             }
             "heartbeat" -> {
@@ -69,9 +76,9 @@ class AgentController(
                 require(health.players.size <= 2000 && health.worlds.size <= 100 && health.worlds.all { it.length in 1..64 })
                 require(health.players.all { it.name.matches(Regex("[a-zA-Z0-9_]{1,16}")) && it.world.length in 1..64 && it.ping >= 0 && runCatching { UUID.fromString(it.id) }.isSuccess })
                 require(health.sampledAt in (System.currentTimeMillis()-15000)..(System.currentTimeMillis()+60000)) { "Heartbeat snapshot is stale" }
-                db.update("UPDATE instances SET last_seen=now(),health=?::jsonb WHERE id=?",json.writeValueAsString(health),id)
-                db.update("INSERT INTO health_samples(instance_id,tps,mspt,heap_used,heap_max,players) VALUES (?,?,?,?,?,?)",
-                    id,health.tps.first(),health.mspt,health.heapUsed,health.heapMax,health.players.size)
+                locked.lastSeen = Instant.now()
+                locked.health = json.writeValueAsString(health)
+                samples.save(HealthSample(instanceId=id,tps=health.tps.first(),mspt=health.mspt,heapUsed=health.heapUsed,heapMax=health.heapMax,players=health.players.size))
                 changes.changed("fleet")
                 AgentReply(node.configuration)
             }
