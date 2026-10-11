@@ -2,30 +2,35 @@ package com.enderstorage.overseer.detector
 
 import com.enderstorage.sentinel.dto.BlockBreakTelemetry
 import com.enderstorage.overseer.entity.*
-import org.springframework.jdbc.core.JdbcTemplate
+import com.enderstorage.overseer.repository.AnomalyAlertRepository
+import com.enderstorage.overseer.repository.BaselineModelRepository
+import com.enderstorage.overseer.repository.MiningEventRepository
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Component
+import java.time.Instant
 import kotlin.math.sqrt
 
 @Component
-class XrayDetector(private val db: JdbcTemplate) {
+class XrayDetector(
+    private val events: MiningEventRepository, private val baselines: BaselineModelRepository, private val alerts: AnomalyAlertRepository
+) {
     fun evaluate(t: BlockBreakTelemetry): AnomalyAlert? {
         if (!t.topologyKnown || t.gameMode != "SURVIVAL" || !valuable(t.blockType)) return null
-        val window = db.queryForList("""SELECT is_exposed FROM mining_events WHERE player_id=? AND instance_id=? AND world=?
-            AND topology_known AND created_at BETWEEN ?::timestamptz - interval '15 minutes' AND ?::timestamptz
-            AND (block_type LIKE '%DIAMOND_ORE' OR block_type LIKE '%GOLD_ORE' OR block_type LIKE '%EMERALD_ORE' OR block_type='ANCIENT_DEBRIS')
-            ORDER BY created_at DESC,id DESC LIMIT 25""",t.playerId,t.instanceId,t.world,java.sql.Timestamp(t.timestampMs),java.sql.Timestamp(t.timestampMs))
+        val at = Instant.ofEpochMilli(t.timestampMs)
+        val window = events.recentValuableExposure(t.playerId,t.instanceId,t.world,at.minusSeconds(900),at,PageRequest.of(0,25))
         if (window.size < 10) return null
-        val hidden = window.count { it["is_exposed"] == false }
+        val hidden = window.count { !it }
         val ratio = hidden.toDouble() / window.size
-        val baseline = db.queryForList("SELECT samples,occluded FROM baseline_models WHERE instance_id=? AND player_id=? AND world=?",t.instanceId,t.playerId,t.world).firstOrNull()
-        val samples = (baseline?.get("samples") as? Number)?.toLong() ?: 0
-        val historical = (baseline?.get("occluded") as? Number)?.toDouble() ?: 0.0
+        val baseline = baselines.findByIdOrNull(BaselineModelId(t.instanceId,t.playerId,t.world))
+        val samples = baseline?.samples ?: 0
+        val historical = baseline?.occluded?.toDouble() ?: 0.0
         val mean = (historical + 1) / (samples + 2)
         val deviation = sqrt(mean * (1 - mean) / (samples + 3))
         val threshold = if(samples >= 100) maxOf(.75, (mean + 3 * deviation + .1).coerceAtMost(.98)) else .75
         if (ratio < threshold) return null
-        val recent = db.queryForObject("""SELECT count(*) FROM anomaly_alerts WHERE instance_id=? AND player_id=?
-            AND alert_type='TOPOLOGICAL_OCCLUSION_XRAY' AND created_at>now()-interval '2 minutes'""",Long::class.java,t.instanceId,t.playerId) ?: 0
+        val recent = alerts.countByInstanceIdAndPlayerIdAndAlertTypeAndCreatedAtAfter(t.instanceId,t.playerId,
+            AlertType.TOPOLOGICAL_OCCLUSION_XRAY,Instant.now().minusSeconds(120))
         if (recent > 0) return null
         return AnomalyAlert(playerId=t.playerId,playerName=t.playerName,instanceId=t.instanceId,
             alertType=AlertType.TOPOLOGICAL_OCCLUSION_XRAY,

@@ -3,12 +3,15 @@ package com.enderstorage.overseer.service
 import com.enderstorage.overseer.entity.*
 import com.enderstorage.overseer.fleet.*
 import jakarta.annotation.PreDestroy
-import org.springframework.jdbc.core.JdbcTemplate
+import com.enderstorage.overseer.repository.AnomalyAlertRepository
+import com.enderstorage.overseer.repository.InstanceRepository
+import com.enderstorage.overseer.repository.InterventionLimitRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.transaction.event.TransactionPhase
 import org.springframework.transaction.event.TransactionalEventListener
+import java.time.Instant
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -17,7 +20,8 @@ data class DetectedAlert(val alert: AnomalyAlert, val observedAtMs: Long)
 
 @Service
 class InterventionService(
-    private val db: JdbcTemplate, private val fleet: FleetService, private val gateway: CommandGateway,
+    private val instances: InstanceRepository, private val alerts: AnomalyAlertRepository, private val limits: InterventionLimitRepository,
+    private val fleet: FleetService, private val gateway: CommandGateway,
     private val audit: AuditService, transactionManager: PlatformTransactionManager
 ) {
     private val workers=ThreadPoolExecutor(1,2,30,TimeUnit.SECONDS,ArrayBlockingQueue(128))
@@ -33,17 +37,15 @@ class InterventionService(
         }
     }
     private fun consider(alert: AnomalyAlert) {
-        db.queryForList("SELECT id FROM instances WHERE id=? FOR UPDATE",alert.instanceId)
+        instances.lockById(alert.instanceId)
         val node=fleet.get(alert.instanceId)
         if(!node.automationEnabled || node.status!="ONLINE") return
-        val recent=db.queryForObject("""SELECT count(*) FROM anomaly_alerts WHERE instance_id=? AND player_id=?
-            AND alert_type='FAST_MINING_TEMPORAL_BREACH' AND severity='CRITICAL' AND created_at>now()-interval '1 minute'""",Long::class.java,node.id,alert.playerId) ?: 0
+        val recent=alerts.countByInstanceIdAndPlayerIdAndAlertTypeAndSeverityAndCreatedAtAfter(node.id,alert.playerId,
+            AlertType.FAST_MINING_TEMPORAL_BREACH,Severity.CRITICAL,Instant.now().minusSeconds(60))
         if(recent<3) return
-        val global=db.queryForObject("SELECT count(*) FROM intervention_limits WHERE instance_id=? AND last_action>now()-interval '1 minute'",Long::class.java,node.id) ?: 0
+        val global=limits.countLastMinute(node.id)
         if(global>=5) return
-        val claimed=db.update("""INSERT INTO intervention_limits(instance_id,player_id,last_action) VALUES (?,?,now())
-            ON CONFLICT(instance_id,player_id) DO UPDATE SET last_action=now()
-            WHERE intervention_limits.last_action<now()-interval '5 minutes'""",node.id,alert.playerId)
+        val claimed=limits.claim(node.id,alert.playerId)
         if(claimed==0) return
         runCatching { gateway.automated(node.id,alert.playerId,alert.playerName,node.automationAction) }.onFailure {
             audit.record("automation",node.id,"AUTOMATED_SKIPPED",alert.playerId.toString(),"REJECTED","Instance command gateway was unavailable")

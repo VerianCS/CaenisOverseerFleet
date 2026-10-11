@@ -1,14 +1,18 @@
 package com.enderstorage.overseer.fleet
 
+import com.enderstorage.overseer.entity.Instance
+import com.enderstorage.overseer.repository.HealthSampleRepository
+import com.enderstorage.overseer.repository.InstanceRepository
 import com.enderstorage.overseer.security.Secrets
 import com.enderstorage.sentinel.dto.AgentConfiguration
 import com.enderstorage.sentinel.dto.Heartbeat
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.springframework.data.domain.Sort
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
-import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.sql.ResultSet
 import java.time.Instant
 
 data class RegisteredInstance(
@@ -40,31 +44,33 @@ data class InstanceSettings(
 )
 
 @Service
-class FleetService(private val db: JdbcTemplate, private val json: ObjectMapper, private val secrets: Secrets) {
-    private fun read(rs: ResultSet) = RegisteredInstance(
-        rs.getString("id"), rs.getString("name"), rs.getString("cluster_group"), rs.getString("region"), rs.getBoolean("enabled"),
-        rs.getString("agent_secret"), rs.getString("rcon_host"), rs.getInt("rcon_port"), rs.getString("rcon_password"),
-        rs.getString("vault_path"), rs.getString("manager_url"), rs.getString("manager_key"), rs.getTimestamp("last_seen")?.toInstant(),
-        rs.getString("health")?.let { json.readValue(it, Heartbeat::class.java) },
-        json.readValue(rs.getString("configuration"), AgentConfiguration::class.java), rs.getBoolean("automation_enabled"), rs.getString("automation_action")
+class FleetService(
+    private val instances: InstanceRepository, private val samples: HealthSampleRepository,
+    private val json: ObjectMapper, private val secrets: Secrets
+) {
+    private fun read(i: Instance) = RegisteredInstance(
+        i.id, i.name, i.clusterGroup, i.region, i.enabled, i.agentSecret, i.rconHost, i.rconPort, i.rconPassword,
+        i.vaultPath, i.managerUrl, i.managerKey, i.lastSeen, i.health?.let { json.readValue(it, Heartbeat::class.java) },
+        json.readValue(i.configuration, AgentConfiguration::class.java), i.automationEnabled, i.automationAction
     )
-    fun get(id: String): RegisteredInstance = db.query("SELECT * FROM instances WHERE id=?", { rs, _ -> read(rs) }, id).firstOrNull()
-        ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Instance not found")
-    fun all() = db.query("SELECT * FROM instances ORDER BY cluster_group,name,id", { rs, _ -> read(rs) })
-    @org.springframework.transaction.annotation.Transactional
+    private fun entity(id: String) = instances.findByIdOrNull(id) ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Instance not found")
+    fun get(id: String): RegisteredInstance = read(entity(id))
+    fun all() = instances.findAll(Sort.by("clusterGroup", "name", "id")).map(::read)
+    @Transactional
     fun create(input: InstanceInput): Pair<InstanceView, String> {
-        db.queryForList("SELECT pg_advisory_xact_lock(1128351054)")
+        instances.lockRegistry()
         require(input.id.matches(Regex("[a-z0-9][a-z0-9-]{2,63}"))) { "Instance ID must contain 3 to 64 lowercase letters, digits or hyphens" }
         require(input.name.isNotBlank() && input.name.length <= 100 && input.clusterGroup.length in 1..64 && input.region.length in 1..64)
-        require((db.queryForObject("SELECT count(*) FROM instances", Long::class.java) ?: 0) < 256) { "Fleet capacity is 256 instances" }
+        require(instances.count() < 256) { "Fleet capacity is 256 instances" }
+        if (instances.existsById(input.id)) throw ResponseStatusException(HttpStatus.CONFLICT, "Instance ID already exists")
         val secret = secrets.randomToken()
-        val changed = db.update("INSERT INTO instances(id,name,cluster_group,region,agent_secret) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING",
-            input.id, input.name, input.clusterGroup, input.region, secrets.encrypt(secret))
-        if (changed == 0) throw ResponseStatusException(HttpStatus.CONFLICT, "Instance ID already exists")
-        return get(input.id).view() to secret
+        val created = instances.save(Instance(id = input.id, name = input.name, clusterGroup = input.clusterGroup,
+            region = input.region, agentSecret = secrets.encrypt(secret)))
+        return read(created).view() to secret
     }
+    @Transactional
     fun connections(id: String, input: ConnectionInput) {
-        get(id)
+        val instance = entity(id)
         require(input.rconPort in 1..65535)
         input.rconHost?.let { require(it.length in 1..253 && it.matches(Regex("[a-zA-Z0-9.:-]+"))) { "Invalid RCON host" } }
         input.rconPassword?.let { require(it.toByteArray().size in 1..1024 && !it.contains('\u0000')) }
@@ -75,27 +81,31 @@ class FleetService(private val db: JdbcTemplate, private val json: ObjectMapper,
             require(uri.path.isNullOrEmpty() || uri.path == "/")
         }
         input.managerKey?.let { require(it.length in 32..256) }
-        db.update("""UPDATE instances SET rcon_host=?,rcon_port=?,rcon_password=coalesce(?,rcon_password),
-            vault_path=?,manager_url=?,manager_key=coalesce(?,manager_key) WHERE id=?""",
-            input.rconHost?.takeIf { it.isNotBlank() }, input.rconPort, input.rconPassword?.let(secrets::encrypt),
-            input.vaultPath?.takeIf { it.isNotBlank() }, input.managerUrl?.trimEnd('/'), input.managerKey?.let(secrets::encrypt), id)
+        instance.rconHost = input.rconHost?.takeIf { it.isNotBlank() }
+        instance.rconPort = input.rconPort
+        input.rconPassword?.let { instance.rconPassword = secrets.encrypt(it) }
+        instance.vaultPath = input.vaultPath?.takeIf { it.isNotBlank() }
+        instance.managerUrl = input.managerUrl?.trimEnd('/')
+        input.managerKey?.let { instance.managerKey = secrets.encrypt(it) }
     }
+    @Transactional
     fun settings(id: String, input: InstanceSettings) {
-        get(id)
+        val instance = entity(id)
         require(input.configuration.batchSize in 1..500 && input.configuration.flushIntervalMs in 500..10000 && input.configuration.jitterMs in 0..2000)
         require(input.automationAction in listOf("kick","freeze"))
-        db.update("UPDATE instances SET enabled=?,configuration=?::jsonb,automation_enabled=?,automation_action=? WHERE id=?",
-            input.enabled, json.writeValueAsString(input.configuration), input.automationEnabled, input.automationAction, id)
+        instance.enabled = input.enabled
+        instance.configuration = json.writeValueAsString(input.configuration)
+        instance.automationEnabled = input.automationEnabled
+        instance.automationAction = input.automationAction
     }
+    @Transactional
     fun rotate(id: String): String {
-        get(id)
+        val instance = entity(id)
         val secret = secrets.randomToken()
-        db.update("UPDATE instances SET agent_secret=?,agent_token_hash=NULL,agent_token_expires_at=NULL WHERE id=?", secrets.encrypt(secret), id)
+        instance.agentSecret = secrets.encrypt(secret)
+        instance.agentTokenHash = null
+        instance.agentTokenExpiresAt = null
         return secret
     }
-    fun history(id: String, hours: Int) = db.queryForList("""
-        SELECT date_trunc('minute',recorded_at) AS time, avg(tps) AS tps, avg(mspt) AS mspt,
-        avg(heap_used)::bigint AS "heapUsed", max(heap_max) AS "heapMax", max(players) AS players
-        FROM health_samples WHERE instance_id=? AND recorded_at >= now() - (? * interval '1 hour')
-        GROUP BY 1 ORDER BY 1""", id, hours.coerceIn(1,72))
+    fun history(id: String, hours: Int) = samples.history(id, hours.coerceIn(1,72))
 }
