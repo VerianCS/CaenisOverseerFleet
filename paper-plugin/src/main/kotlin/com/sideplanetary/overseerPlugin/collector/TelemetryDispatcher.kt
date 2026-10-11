@@ -54,7 +54,7 @@ class TelemetryDispatcher(
         Files.createDirectories(directory)
         persistBatch()
         val now=System.currentTimeMillis()
-        // Control traffic has its own retry clock: a NiFi outage must not silence health.
+        // Control traffic has its own retry clock: a mining-ingest outage must not silence health.
         if(now<nextControlAttempt) return
         try {
             if(now >= expires-60000) {
@@ -89,7 +89,7 @@ class TelemetryDispatcher(
                         queue.dropped.addAndGet(eventCount(path.fileName.toString()))
                         logger.warning("Expired telemetry spool batch removed after 24 hours.")
                     } else {
-                        val reply=request("mining",Files.readAllBytes(path),config.telemetryUrl,path.fileName.toString().substringBefore('_'))
+                        val reply=request("mining",Files.readAllBytes(path),nonce=path.fileName.toString().substringBefore('_'))
                         when(reply.statusCode()) {
                             200,202 -> Files.deleteIfExists(path)
                             400,413,422 -> {

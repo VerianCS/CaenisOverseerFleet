@@ -31,10 +31,6 @@ Unknown topology and unreliable timings explicitly disable their corresponding
 detection path. Idempotency is both per request and per event. No legacy unsigned
 `/api/v1/telemetry/mining` endpoint remains.
 
-NiFi calls `/api/v1/agent/{id}/authorize` with the same mining signature and exact
-body. This authorizes and checks payload bounds without creating a receipt or
-running a detector. On delivery, the normal mining endpoint repeats authorization.
-
 ## Browser REST
 
 All endpoints below are under `/api/v1`.

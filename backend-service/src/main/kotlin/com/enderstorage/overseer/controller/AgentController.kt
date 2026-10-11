@@ -27,29 +27,24 @@ class AgentController(
     @PostMapping("/{purpose}")
     @Transactional
     fun receive(@PathVariable id: String, @PathVariable purpose: String, request: HttpServletRequest): Any {
-        if (purpose !in listOf("enroll","heartbeat","mining","config","authorize")) throw ResponseStatusException(HttpStatus.NOT_FOUND)
-        val signedPurpose = if (purpose == "authorize") "mining" else purpose
+        if (purpose !in listOf("enroll","heartbeat","mining","config")) throw ResponseStatusException(HttpStatus.NOT_FOUND)
         val bytes = request.inputStream.readNBytes(2 * 1024 * 1024 + 1)
         if (bytes.size > 2 * 1024 * 1024) throw ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE)
         val timestamp = request.getHeader("X-Caenis-Timestamp") ?: unauthorized()
         val nonce = request.getHeader("X-Caenis-Nonce") ?: unauthorized()
         val signature = request.getHeader("X-Caenis-Signature") ?: unauthorized()
         val sentAt = timestamp.toLongOrNull() ?: unauthorized()
-        if (sentAt > System.currentTimeMillis() + 60000 || sentAt < System.currentTimeMillis() - (if(signedPurpose == "mining") 86400000 else 60000)) unauthorized()
+        if (sentAt > System.currentTimeMillis() + 60000 || sentAt < System.currentTimeMillis() - (if(purpose == "mining") 86400000 else 60000)) unauthorized()
         val nonceId = runCatching { UUID.fromString(nonce) }.getOrElse { unauthorized() }
         db.queryForList("SELECT id FROM instances WHERE id=? FOR UPDATE",id)
         val node = fleet.get(id)
         if (!node.enabled) unauthorized()
-        val expected = RequestSigning.sign(secrets.decrypt(node.agentSecret),id,signedPurpose,timestamp,nonce,bytes)
+        val expected = RequestSigning.sign(secrets.decrypt(node.agentSecret),id,purpose,timestamp,nonce,bytes)
         if (!RequestSigning.equal(signature,expected)) unauthorized()
         if (purpose in listOf("heartbeat","config")) {
             val token = request.getHeader("X-Caenis-Token") ?: unauthorized()
             val stored = db.queryForList("SELECT agent_token_hash FROM instances WHERE id=? AND agent_token_expires_at>now()",id).firstOrNull()
             if (stored == null || !RequestSigning.equal(stored["agent_token_hash"] as? String ?: "",secrets.hash(token))) unauthorized()
-        }
-        if (purpose == "authorize") {
-            decodeMining(bytes,id)
-            return AgentReply(node.configuration)
         }
         val hash = Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(bytes))
         val inserted = db.update("INSERT INTO ingress_receipts(instance_id,nonce,purpose,body_hash) VALUES (?,?,?,?) ON CONFLICT DO NOTHING",id,nonceId,purpose,hash)

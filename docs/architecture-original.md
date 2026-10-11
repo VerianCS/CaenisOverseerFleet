@@ -1,3 +1,5 @@
+> **Historical document.** The Apache NiFi conduit described here has been removed; agents send signed telemetry directly to the core. See the README and `docs/CONTRACTS.md` for the current design.
+
 # Caenis Overseer
 
 *A distributed anomaly-detection and spatial-observation platform for PaperMC servers.*

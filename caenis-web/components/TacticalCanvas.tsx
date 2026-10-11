@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { ZoomIn, ZoomOut, Crosshair } from 'lucide-react'
-import type { MapMarker } from '@/app/cheat-tracking/types/deck'
+import type { MapMarker } from '@/lib/types'
 import { Button } from './ui/button'
 
 export interface Viewport { x: number; z: number; scale: number }

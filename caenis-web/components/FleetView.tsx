@@ -29,7 +29,7 @@ export function AgentKey({ id, secret }: { id: string; secret: string }) {
   }
 
   function download() {
-    const value = 'instance:\n  id: "' + id + '"\n  secret: "' + secret + '"\nbackend:\n  url: "' + window.location.origin + '"\n  telemetry-url: ""\n  timeout-seconds: 3\ncollector:\n  queue-capacity: 8192\n  spool-max-mb: 128\n'
+    const value = 'instance:\n  id: "' + id + '"\n  secret: "' + secret + '"\nbackend:\n  url: "' + window.location.origin + '"\n  timeout-seconds: 3\ncollector:\n  queue-capacity: 8192\n  spool-max-mb: 128\n'
     const url = URL.createObjectURL(new Blob([value], { type: 'text/yaml' }))
     const link = document.createElement('a'); link.href = url; link.download = 'config.yml'; link.click(); URL.revokeObjectURL(url)
   }

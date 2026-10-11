@@ -8,14 +8,6 @@ http:
       middlewares: [body-limit]
       tls:
         certResolver: caenis
-    telemetry:
-      entryPoints: [websecure]
-      rule: 'Host(`{{env "CAENIS_HOST"}}`) && Path(`/telemetry`)'
-      priority: 100
-      service: nifi
-      middlewares: [body-limit]
-      tls:
-        certResolver: caenis
     web:
       entryPoints: [websecure]
       rule: 'Host(`{{env "CAENIS_HOST"}}`)'
@@ -36,7 +28,3 @@ http:
       loadBalancer:
         servers:
           - url: http://web:3000
-    nifi:
-      loadBalancer:
-        servers:
-          - url: http://nifi:8085

@@ -53,7 +53,7 @@ caenis:
   secure-cookies: ${CAENIS_SECURE_COOKIES:false}
   session-secret: ${CAENIS_SESSION_SECRET:super-secret-session-key-for-local-dev-1234567890}
   encryption-key: ${CAENIS_ENCRYPTION_KEY:MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=}
-  bootstrap-username: admin # Change to use the .env instead
-  bootstrap-password: adminpassword123 # Change to use the .env instead
+  bootstrap-username: ${CAENIS_ADMIN_USERNAME:admin}
+  bootstrap-password: ${CAENIS_ADMIN_PASSWORD} # no default: refuse to start without an operator-chosen password
   vault-url: ${VAULT_ADDR:}
   vault-token-file: ${VAULT_TOKEN_FILE:}

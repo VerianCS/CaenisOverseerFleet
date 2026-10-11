@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useResource } from '@/lib/poll'
 import type { Scope } from '@/lib/types'
-import type { MapMarker, ThreatAlert, OverviewStats } from '@/app/cheat-tracking/types/deck'
+import type { MapMarker, ThreatAlert, OverviewStats } from '@/lib/types'
 import TacticalCanvas, { type Viewport } from './TacticalCanvas'
 import { Alert } from './ui/alert'
 import { Button } from './ui/button'
