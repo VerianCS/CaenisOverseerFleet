@@ -1,7 +1,7 @@
 name: CaenisOverseer
 version: '${version}'
 main: com.sideplanetary.overseerPlugin.OverseerPlugin
-api-version: '1.21.11'
+api-version: '26.3'
 load: POSTWORLD
 description: "Asynchronous mining telemetry and authenticated fleet monitoring"
 commands:

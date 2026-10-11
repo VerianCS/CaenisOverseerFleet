@@ -9,7 +9,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:26.3.build.174-beta")
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
     implementation(project(":common-dto"))
@@ -35,3 +35,9 @@ tasks.build {
 tasks.processResources {
     filesMatching("plugin.yml") { expand("version" to project.version) }
 }
+// Paper 26.x ships Java 25 class files and requires Java 25 servers.
+kotlin {
+    jvmToolchain(26)
+    compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25) }
+}
+tasks.withType<JavaCompile>().configureEach { options.release.set(25) }
