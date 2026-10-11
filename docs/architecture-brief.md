@@ -1,3 +1,5 @@
+> **Historical document.** The Apache NiFi conduit described here has been removed; agents send signed telemetry directly to the core. See the README and `docs/CONTRACTS.md` for the current design.
+
 Caenis Overseer & Caenis Fleet Console
 
 A distributed fleet-management, remote-orchestration, and spatial

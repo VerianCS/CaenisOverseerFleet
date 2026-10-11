@@ -21,9 +21,6 @@ $taskValues = [ordered]@{
   DATABASE_PASSWORD = (New-CaenisSecret)
   DATABASE_OWNER_PASSWORD = (New-CaenisSecret)
   CAENIS_MANAGER_KEY = (New-CaenisSecret)
-  NIFI_USERNAME = 'caenis'
-  NIFI_PASSWORD = (New-CaenisSecret)
-  NIFI_SENSITIVE_KEY = (New-CaenisSecret)
   CAENIS_BIND = '127.0.0.1'
   CAENIS_HTTP_PORT = '3000'
 }

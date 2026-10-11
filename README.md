@@ -68,7 +68,6 @@ flowchart TB
         WEB["web<br/>Next.js standalone"]
         CORE["core<br/>Spring Boot 3.5"]
         DB[("PostgreSQL 16<br/>+ PostGIS 3.4")]
-        NIFI["NiFi conduit<br/>(optional profile)"]
     end
 
     subgraph Host["Game host(s)"]
@@ -81,13 +80,10 @@ flowchart TB
     UI -- "HTTPS / REST + STOMP (/ws)" --> GW
     GW -- "/" --> WEB
     GW -- "/api/v1, /ws" --> CORE
-    GW -- "/telemetry" --> NIFI
     CORE --- DB
 
     AGENT -- "HMAC-signed enroll / heartbeat" --> CORE
     AGENT -- "HMAC-signed mining batches" --> CORE
-    AGENT -. "or via conduit" .-> NIFI
-    NIFI -. "authorize + deliver (bytes untouched)" .-> CORE
 
     CORE -- "RCON (TCP, private network)" --> Paper
     CORE -- "start / stop / restart" --> MGR
@@ -100,7 +96,6 @@ flowchart TB
 | **`backend-service`** (`caenis-core.jar`) | Agent authentication, detectors, PostGIS persistence, fleet registry, RCON pool, command gateway, audit log, auth/RBAC, STOMP invalidation. | Changes game state without an explicit operator command or opt-in automation rule. |
 | **`backend-service-servermanager`** (`caenis-manager.jar`) | Starts, stops and restarts pre-configured Paper directories/JARs on the host. | Accepts command text, environment variables, paths or uploads from a request. |
 | **`caenis-web`** | Public landing page with an interactive pipeline explainer, plus the authenticated console. | Computes heuristics. The core re-checks every request. |
-| **NiFi conduit** (optional) | Durable buffering and backpressure between the agents and the core. Checks each request with the core's `authorize` endpoint before accepting it. | Holds detector logic or per-node secrets, or re-serialises signed payloads. |
 
 ## Repository layout
 
@@ -115,11 +110,10 @@ flowchart TB
 ├── docker/
 │   ├── traefik/                     # Gateway routing (HTTP and ACME/HTTPS variants)
 │   ├── postgres/                    # Creates the least-privilege runtime DB user
-│   ├── nifi/                        # Conduit provisioning script + README
 │   └── manager/                     # Example host-manager instance config
 ├── scripts/                         # PowerShell 7 operator scripts (init, start, package, backup)
 ├── docs/                            # Contracts, operations guide, architecture notes
-├── docker-compose.yml               # postgres · core · web · gateway · nifi (profile)
+├── docker-compose.yml               # postgres · core · web · gateway
 └── docker-compose.https.yml         # Overlay: public HTTPS with Let's Encrypt
 ```
 
@@ -231,9 +225,6 @@ CAENIS_ENCRYPTION_KEY=$(gen)
 DATABASE_PASSWORD=$(gen)
 DATABASE_OWNER_PASSWORD=$(gen)
 CAENIS_MANAGER_KEY=$(gen)
-NIFI_USERNAME=caenis
-NIFI_PASSWORD=$(gen)
-NIFI_SENSITIVE_KEY=$(gen)
 CAENIS_BIND=127.0.0.1
 CAENIS_HTTP_PORT=3000
 EOF
@@ -245,7 +236,6 @@ chmod 600 .env
 
 ```powershell
 pwsh ./scripts/Start-Caenis.ps1            # or: docker compose up --build -d
-pwsh ./scripts/Start-Caenis.ps1 -WithNiFi  # include the optional NiFi conduit
 ```
 
 ### 3. Sign in
@@ -266,7 +256,6 @@ Open <http://localhost:3000>. Choose **Open console** and sign in as `admin` usi
      secret: "<agent key from the console>"
    backend:
      url: "http://127.0.0.1:3000"      # must be reachable from the Paper host
-     telemetry-url: ""                  # empty = direct; NiFi: http://<conduit>:8085/telemetry
      timeout-seconds: 3
    collector:
      queue-capacity: 8192
@@ -321,7 +310,6 @@ Guarantees:
 | `CAENIS_ENCRYPTION_KEY` | Base64 AES-256-GCM key that encrypts agent secrets, RCON passwords and manager keys. **Back it up.** |
 | `DATABASE_PASSWORD` / `DATABASE_OWNER_PASSWORD` | Runtime (least-privilege) and migration-owner DB passwords. |
 | `CAENIS_MANAGER_KEY` | Shared key for the host manager (≥ 32 chars). |
-| `NIFI_USERNAME` / `NIFI_PASSWORD` / `NIFI_SENSITIVE_KEY` | NiFi single-user credentials and sensitive-properties key. |
 | `CAENIS_BIND` / `CAENIS_HTTP_PORT` | Gateway bind address and port (default `127.0.0.1:3000`). |
 | `CAENIS_HOST` / `ACME_EMAIL` | HTTPS overlay only: public hostname and Let's Encrypt contact. |
 
@@ -376,7 +364,7 @@ Dropped and spooled counts are reported in every heartbeat, so data loss shows u
 
 ## API overview
 
-All browser endpoints live under `/api/v1`. Agent endpoints live under `/api/v1/agent/{instanceId}/{enroll|heartbeat|mining|config|authorize}`.
+All browser endpoints live under `/api/v1`. Agent endpoints live under `/api/v1/agent/{instanceId}/{enroll|heartbeat|mining|config}`.
 
 | Area | Endpoints |
 | --- | --- |
@@ -401,7 +389,7 @@ The full contracts (signing, limits, STOMP rules, host-manager API) are in [`doc
 
 # Run the core locally against a PostGIS database
 docker compose up -d postgres
-DATABASE_URL=jdbc:postgresql://localhost:5432/caenis_overseer ./gradlew :backend-service:bootRun
+CAENIS_ADMIN_PASSWORD=<16+ chars> DATABASE_URL=jdbc:postgresql://localhost:5432/caenis_overseer ./gradlew :backend-service:bootRun
 
 # Web console
 cd caenis-web
@@ -411,7 +399,7 @@ CAENIS_BACKEND_URL=http://127.0.0.1:8080 CAENIS_SESSION_SECRET=<same as core> pn
 
 > The `postgres` service is only on an internal Docker network. To reach it from your host during development, add a temporary `ports` mapping.
 
-**Tech stack:** Kotlin 2.2 · JVM 21 · Paper API 1.21.11 · kotlinx.serialization · Spring Boot 3.5 (Web, Security, WebSocket/STOMP, JDBC/JPA, Actuator) · Flyway · Nimbus JOSE · Micrometer OTLP · PostgreSQL 16 + PostGIS 3.4 · Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · shadcn/ui · Traefik 3.4 · Apache NiFi 2.11 · Docker Compose.
+**Tech stack:** Kotlin 2.2 · JVM 21 · Paper API 1.21.11 · kotlinx.serialization · Spring Boot 3.5 (Web, Security, WebSocket/STOMP, JDBC/JPA, Actuator) · Flyway · Nimbus JOSE · Micrometer OTLP · PostgreSQL 16 + PostGIS 3.4 · Next.js 16 · React 19 · TypeScript · Tailwind CSS v4 · shadcn/ui · Traefik 3.4 · Docker Compose.
 
 ### Backups
 
@@ -445,7 +433,6 @@ Caenis is under active development and has **not been validated in production**:
 | --- | --- |
 | [`docs/CONTRACTS.md`](docs/CONTRACTS.md) | Agent signing protocol, REST/STOMP contracts, host-manager API |
 | [`docs/OPERATIONS.md`](docs/OPERATIONS.md) | Operator's guide: install, connect, roles, detection, delivery, RCON, HTTPS, Vault, backups |
-| [`docker/nifi/README.md`](docker/nifi/README.md) | Provisioning and queue policy for the optional NiFi conduit |
 | [`docs/architecture-brief.md`](docs/architecture-brief.md) | Original design brief and trade-off discussion |
 
 ## License

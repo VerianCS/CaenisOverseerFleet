@@ -4,7 +4,7 @@
 
 Requirements: PowerShell 7 and Docker Desktop with Linux containers. To package the
 plugin and the host manager you also need JDK 21. Node is not required to run the
-console through Docker. If you use Python to provision NiFi, use Conda.
+console through Docker.
 
 From the repository root:
 
@@ -130,11 +130,6 @@ most five minutes and is cleared when the plugin restarts.
 - Retention and the heartbeat detector are functional platform tasks,
   not validation tasks.
 
-NiFi is optional. See [its procedure](../docker/nifi/README.md). Signatures
-are verified before admission to the main queue. The original signature is checked
-again when persisting. The JSON bytes are preserved without QueryRecord or
-transformations that would invalidate the signature.
-
 ## RCON and audit
 
 Connections are persistent, with one in-flight command per node and a bounded
@@ -162,8 +157,6 @@ To publish on your own domain:
    `ACME_EMAIL=your-email`.
 3. Run
    `docker compose -f docker-compose.yml -f docker-compose.https.yml up --build -d`.
-4. To use the conduit on that same address, add `--profile nifi` before
-   `up` and configure `https://your-domain/telemetry` as the telemetry URL.
 
 Traefik keeps certificates in a volume and routes /ws to the core.
 A published deployment has not been performed here: no domain,
@@ -192,7 +185,7 @@ metrics endpoint requires a SuperAdmin session and is not published separately.
 
 `pwsh ./scripts/Backup-Caenis.ps1` creates a binary dump in
 `runtime/backups/`. Protect `.env` separately, especially
-`CAENIS_ENCRYPTION_KEY`, the NiFi volumes and the Paper worlds.
+`CAENIS_ENCRYPTION_KEY`, and the Paper worlds.
 
 To restore a backup into a new database, stopped for writes:
 

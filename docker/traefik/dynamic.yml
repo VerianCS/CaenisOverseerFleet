@@ -5,19 +5,10 @@ http:
       priority: 100
       service: core
       middlewares: [body-limit]
-    telemetry:
-      rule: "Path(`/telemetry`)"
-      priority: 100
-      service: nifi
-      middlewares: [body-limit]
     web:
       rule: "PathPrefix(`/`)"
       service: web
   services:
-    nifi:
-      loadBalancer:
-        servers:
-          - url: http://nifi:8085
     core:
       loadBalancer:
         servers:

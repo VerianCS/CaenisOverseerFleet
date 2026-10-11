@@ -13,7 +13,7 @@ class SerializationConfig {
 
     @Bean
     fun json(): Json = Json {
-        // Prevents 400 Bad Request if NiFi adds extra metadata fields
+        // Tolerates fields added by newer agents
         ignoreUnknownKeys = true
         isLenient = true
         encodeDefaults = true
