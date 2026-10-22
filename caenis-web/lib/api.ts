@@ -45,10 +45,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     const body = await response.json().catch(() => null)
     console.error(`[API ERROR] Endpoint "${path}" returned status ${response.status}:`, body)
 
-    if (response.status === 401 && path !== '/auth/login' && typeof window !== 'undefined') {
-      console.error(`[AUTH] 401 encountered on ${path} — redirect temporarily disabled for debugging`)
-      // window.location.assign('/login') // <-- TEMPORARILY COMMENT THIS OUT
-    }
+    if (response.status === 401 && path !== '/auth/login' && typeof window !== 'undefined') window.location.assign('/login')
     throw new ApiError(body?.message ?? (response.status === 403 ? 'Your role cannot perform this action.' : 'The service could not complete this request.'), response.status)
   }
   if (response.status === 204 || response.headers.get('content-length') === '0') return undefined as T

@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  jvm:
+    name: JVM build and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 21 for the core, manager and DTOs; 26 is the plugin's toolchain (it emits Java 25 bytecode for Paper 26.x).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            26
+            21
+      - uses: gradle/actions/setup-gradle@v4
+      # Unit tests plus the Testcontainers PostGIS integration tests (Docker is available on ubuntu runners).
+      - run: ./gradlew build --console=plain -Porg.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_26_X64
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: '**/build/reports/tests/'
+
+  web:
+    name: Web console type-check and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: caenis-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: caenis-web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: caenis-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm exec next build
+        env:
+          CAENIS_BACKEND_URL: http://127.0.0.1:8080

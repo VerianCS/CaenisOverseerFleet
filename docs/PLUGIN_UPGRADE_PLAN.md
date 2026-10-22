@@ -15,12 +15,12 @@ _Written 2026-10-11._
 
 ## Progress (branch `claude/paper-26.3`)
 
-The user chose to go straight to **26.3**, so the API is pinned to the newest beta build, `26.3.build.174-beta`. Re-pin when Paper publishes a stable build.
+The user chose to go straight to **26.3**. It was first pinned to the beta build `26.3.build.174-beta`. Paper published its first stable 26.3 build on 2026-10-22, and the pin is now `26.3.build.214-stable`.
 
 | Step | Status |
 | --- | --- |
 | 1. Toolchain | Done. The plugin compiles with a **JDK 26 toolchain** to **Java 25 bytecode** (`jvmTarget = JVM_25`, `--release 25`), because JDK 25 is not installed locally. Kotlin moved to **2.3.21** across the repo, since 2.2.21 has no JVM 25 target. The Spring modules' `kotlin.version` moved with it. Shadow 8.3.8 relocates Java 25 classes without problems. The core's Docker build is unaffected: it still builds with only JDK 21 available. |
-| 2. Dependency + descriptor | Done. `paper-api:26.3.build.174-beta` and `api-version: '26.3'`. |
+| 2. Dependency + descriptor | Done. `paper-api:26.3.build.214-stable` and `api-version: '26.3'`. |
 | 3. API breaks | None. The code compiles against 26.3 unchanged. The only API warning is `Player#isOnGround` being deprecated as client-controlled. It was already deprecated in 1.21.11, and spoofing it can only make the expected dig time longer, so it is left as is. |
 | 4. World identity | Not started. This is a separate change, because `getName()` is obsolete but not deprecated. |
 | 5. Detector data | Checked. Comparing the `Material` enums of 1.21.11 and 26.3 shows 157 new constants, and none of them are ores, pickaxes or tracked hard blocks. The table needs no 26.3 changes. The gaps it already had are covered in the PR. |
