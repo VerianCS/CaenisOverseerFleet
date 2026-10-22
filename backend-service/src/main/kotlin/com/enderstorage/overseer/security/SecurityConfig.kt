@@ -1,5 +1,6 @@
 package com.enderstorage.overseer.security
 
+import jakarta.servlet.DispatcherType
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
@@ -41,7 +42,9 @@ class SecurityConfig(
                     .ignoringRequestMatchers("/api/v1/agent/**") // Agents use HMAC signing, not browser CSRF
             }
             .authorizeHttpRequests {
-                it.requestMatchers("/api/v1/auth/login", "/api/v1/auth/csrf", "/api/v1/agent/**", "/actuator/health").permitAll()
+                // sendError(401/403) re-dispatches to /error; without this the error dispatch itself is denied and every 403 surfaces as 401.
+                it.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                    .requestMatchers("/api/v1/auth/login", "/api/v1/auth/csrf", "/api/v1/agent/**", "/actuator/health").permitAll()
                     .requestMatchers("/api/v1/fleet", "/api/v1/fleet/**", "/api/v1/audit/**", "/api/v1/commands/**").hasAnyRole("SUPERADMIN", "MODERATOR")
                     .requestMatchers("/api/v1/users/**", "/api/v1/settings/**", "/actuator/**").hasRole("SUPERADMIN")
                     .requestMatchers("/api/v1/**", "/ws/**").authenticated()

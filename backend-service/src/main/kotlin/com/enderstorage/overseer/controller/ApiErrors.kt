@@ -15,6 +15,8 @@ class ApiErrors {
     fun malformed() = ResponseEntity.badRequest().body(mapOf("message" to "Malformed request body"))
     @ExceptionHandler(IllegalArgumentException::class)
     fun invalid(error: IllegalArgumentException) = ResponseEntity.badRequest().body(mapOf("message" to (error.message ?: "Invalid input")))
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException::class)
+    fun conflict() = ResponseEntity.status(HttpStatus.CONFLICT).body(mapOf("message" to "This conflicts with an existing record"))
     @ExceptionHandler(ResponseStatusException::class)
     fun status(error: ResponseStatusException) = ResponseEntity.status(error.statusCode).body(mapOf("message" to (error.reason ?: "Request rejected")))
     @ExceptionHandler(Exception::class)
