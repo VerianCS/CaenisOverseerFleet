@@ -9,7 +9,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:26.3.build.174-beta")
+    compileOnly("io.papermc.paper:paper-api:26.3.build.214-stable")
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
     implementation(project(":common-dto"))
