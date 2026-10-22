@@ -19,4 +19,5 @@ subprojects {
             compilerOptions { freeCompilerArgs.add("-Xjsr305=strict") }
         }
     }
+    tasks.withType<Test>().configureEach { useJUnitPlatform() }
 }

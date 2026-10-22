@@ -422,7 +422,7 @@ docker compose -f docker-compose.yml -f docker-compose.https.yml up --build -d
 Caenis is under active development and has **not been validated in production**:
 
 - There are no measured accuracy, false-positive or performance figures, and no labelled training data. Treat alerts as leads for human review, not verdicts.
-- The automated test suite currently only checks that the Spring contexts load.
+- Automated tests cover the detectors, request signing, and an end-to-end run against a real PostGIS database (Testcontainers). There is no performance test against a live Paper server yet.
 - The design assumes **one active core** and up to **256 instances**.
 - Mining telemetry is the only gameplay signal ingested today. The movement DTO exists but is not wired in yet.
 - The occlusion detector can over-report players who legitimately follow ore veins. Per-player baselines are the mitigation.
